@@ -117,7 +117,7 @@ export default function NewGoalPage() {
         </button>
       </header>
 
-      <main className="flex-1 flex flex-col px-5 pt-4 pb-10 max-w-lg mx-auto w-full">
+      <main className="flex-1 flex flex-col px-5 md:px-0 pt-4 pb-10 w-full max-w-xl mx-auto">
         <StepBar current={stepNum} />
 
         {/* ── STEP 1: 목표 입력 ── */}
