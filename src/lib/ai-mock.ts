@@ -401,6 +401,13 @@ export interface CurrentMilestone {
 export interface PreviousTaskSnapshot {
   title: string
   completed: boolean
+  difficulty?: number | null  // 1=어려움, 2=적절, 3=쉬움 (회고 루프)
+}
+
+export interface TaskGenerationResult {
+  titles: string[]
+  /** 어제 회고 데이터를 반영해 사용자에게 보여줄 짧은 안내 (없으면 null) */
+  adjustmentNote: string | null
 }
 
 export function mockGenerateTasks(
@@ -409,18 +416,35 @@ export function mockGenerateTasks(
   previous?: PreviousTaskSnapshot[] | null,
   dayIndex?: number,
   milestone?: CurrentMilestone | null
-): string[] {
+): TaskGenerationResult {
   const ans = diagnosis?.answers ?? {}
   const time = ans.time ?? ''
   const level = ans.level ?? ''
   const day = Math.max(1, dayIndex ?? 1)
   const prev = previous ?? []
 
-  const minutes =
+  const baseMinutes =
     time === '15분 이내' ? 10 :
     time === '30분 정도' ? 25 :
     time === '1시간'      ? 45 :
     time === '2시간 이상' ? 60 : 25
+
+  // ── 회고 루프: 어제 평균 난이도로 분량 미세 조정 ──
+  const rated = prev.filter((t): t is PreviousTaskSnapshot & { difficulty: number } =>
+    typeof t.difficulty === 'number'
+  )
+  let minutes = baseMinutes
+  let reflectionNote = ''
+  if (rated.length > 0) {
+    const avg = rated.reduce((s, t) => s + t.difficulty, 0) / rated.length
+    if (avg <= 1.4) {
+      minutes = Math.max(5, Math.round(baseMinutes * 0.7))
+      reflectionNote = '어제 어려우셨다고 해서 분량을 줄였어요'
+    } else if (avg >= 2.6) {
+      minutes = Math.round(baseMinutes * 1.3)
+      reflectionNote = '어제 여유로우셨다고 해서 좀 더 도전적으로'
+    }
+  }
 
   const isBeginner = /처음|아이디어|알파벳|0에서|거의 안|거의 신경/.test(level)
   const isAdvanced = /익숙|운영|능숙|체계적|꾸준히|매일|깊이/.test(level)
@@ -430,27 +454,30 @@ export function mockGenerateTasks(
     ? `[${milestone.order}단계: ${milestone.title}]`
     : `[${goalTitle}]`
 
+  const note = reflectionNote || null
+  const ok = (titles: string[]): TaskGenerationResult => ({ titles, adjustmentNote: note })
+
   // ── Day 1 또는 이전 데이터 없음: 진단만 반영 ──
   if (day === 1 || prev.length === 0) {
     if (isBeginner) {
-      return [
+      return ok([
         `${msPrefix} 가장 쉬운 첫 단계 1가지만 ${minutes}분 안에 시도하기`,
         `관련 기초 자료(글/영상) ${Math.max(5, Math.floor(minutes / 3))}분 훑어보고 핵심 키워드 3개 메모`,
         `오늘 한 일 1줄 + 막혔던 점 1줄 기록 — 내일 첫 행동 미리 정하기`,
-      ]
+      ])
     }
     if (isAdvanced) {
-      return [
+      return ok([
         `${msPrefix} 가장 임팩트 큰 작업 1가지에 ${minutes}분 깊게 몰입`,
         `진행 중 막힌 지점 또는 개선 포인트 ${Math.floor(minutes / 3)}분 분석 + 해결안 1개 도출`,
-        `오늘 결과물 5줄 회고 + 이 마일스톤 마무리에 필요한 핵심 단계 1개 결정`,
-      ]
+        `오늘 결과물 5줄 회고 + 이 단계 마무리에 필요한 핵심 단계 1개 결정`,
+      ])
     }
-    return [
+    return ok([
       `${msPrefix} 핵심 작업 1가지를 ${minutes}분 집중 실행`,
       `관련 자료/레퍼런스 ${Math.floor(minutes / 3)}분 리서치 + 인사이트 3줄 메모`,
       `오늘 진행 5줄 회고 + 내일 첫 번째 행동 미리 결정`,
-    ]
+    ])
   }
 
   // ── Day 2+: 어제 결과 기반 동적 생성 ──
@@ -459,32 +486,31 @@ export function mockGenerateTasks(
   const half = Math.max(5, Math.floor(minutes / 2))
   const tiny = Math.max(5, Math.floor(minutes / 3))
 
-  // 단계 마감 압박 — 며칠 남았는지 메시지 강화
   const pressure = milestone && milestone.daysLeft <= 3 && milestone.daysLeft >= 0
     ? ` (단계 마감 ${milestone.daysLeft}일 남음)`
     : ''
 
   if (failed.length === 0) {
-    return [
+    return ok([
       `${msPrefix} 어제 3개 모두 완료! 한 단계 더 도전적인 작업 ${minutes}분${pressure}`,
       `흐름을 이어 이전보다 깊이 있는 부분 ${half}분 — 막히면 일부만 진행 OK`,
       `여기까지 진행을 5줄 회고 + 다음 도약 포인트 1가지 결정`,
-    ]
+    ])
   }
 
   if (completed.length === 0) {
-    return [
+    return ok([
       `${msPrefix} 어제는 잠깐 어려웠죠. 오늘은 단 ${tiny}분만, 가장 작은 행동 하나만`,
       `완료 후 잠시 쉬고 — 어제 막혔던 이유 1줄 + 오늘 다른 시도 1줄 적기`,
       `오늘 한 작은 한 걸음을 1줄로 기록 — 내일은 여기서 다시 시작`,
-    ]
+    ])
   }
 
   const focusFailed = failed[0]
   const truncated = focusFailed.title.length > 35 ? focusFailed.title.slice(0, 35) + '…' : focusFailed.title
-  return [
+  return ok([
     `${msPrefix} [이어서] 어제 못 끝낸 "${truncated}" — 짧게 ${half}분만 다시 시도`,
     `[다음 단계] ${goalTitle}의 새로운 작업 ${minutes}분 실행${pressure}`,
     `[회고] 어제 ${completed.length}개 완료한 흐름 정리 + 오늘 1가지 더 잘 할 점 결정`,
-  ]
+  ])
 }

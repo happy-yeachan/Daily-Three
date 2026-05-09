@@ -52,14 +52,15 @@ model Milestone {
 }
 
 model DailyTask {
-  id        String   @id @default(cuid())
-  title     String
-  completed Boolean  @default(false)
-  date      DateTime @default(now())
-  dayIndex  Int      @default(1)   // 목표 시작 후 며칠째 — 진척도 추적용
-  createdAt DateTime @default(now())
-  goalId    String
-  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  title      String
+  completed  Boolean  @default(false)
+  date       DateTime @default(now())
+  dayIndex   Int      @default(1)   // 목표 시작 후 며칠째 — 진척도 추적용
+  difficulty Int?                    // 사용자 자가 평가 1=어려움, 2=적절, 3=쉬움 (회고 루프)
+  createdAt  DateTime @default(now())
+  goalId     String
+  goal       Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
 
   @@index([goalId, date])
 }

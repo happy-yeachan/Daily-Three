@@ -8,6 +8,7 @@ interface DailyTask {
   id: string
   title: string
   completed: boolean
+  difficulty: number | null
 }
 
 interface Milestone {
@@ -371,6 +372,75 @@ function GoalTaskPanel({
   )
 }
 
+/* ── 회고 모달 ── */
+function ReflectionModal({
+  open,
+  onSubmit,
+  onSkip,
+}: {
+  open: boolean
+  onSubmit: (difficulty: 1 | 2 | 3) => void
+  onSkip: () => void
+}) {
+  if (!open) return null
+  const options: { value: 1 | 2 | 3; emoji: string; label: string; desc: string }[] = [
+    { value: 1, emoji: '😰', label: '어려웠어요', desc: '내일은 분량을 줄여드릴게요' },
+    { value: 2, emoji: '😊', label: '적당했어요', desc: '이 페이스 그대로' },
+    { value: 3, emoji: '😎', label: '쉬웠어요',   desc: '내일 더 도전적으로' },
+  ]
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center p-4 animate-pop-in">
+      <div className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-2xl">
+        <div className="text-center mb-5">
+          <div className="text-4xl mb-2">🎉</div>
+          <h2 className="text-xl font-black text-white mb-1">오늘 3개 모두 완료!</h2>
+          <p className="text-sm text-gray-500">오늘 페이스, 어땠어요?</p>
+        </div>
+        <div className="space-y-2.5">
+          {options.map((o) => (
+            <button
+              key={o.value}
+              onClick={() => onSubmit(o.value)}
+              className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl
+                         bg-gray-800 hover:bg-gray-700 active:scale-[0.98]
+                         border border-gray-700 hover:border-indigo-500
+                         transition-all text-left"
+            >
+              <span className="text-3xl">{o.emoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-bold">{o.label}</p>
+                <p className="text-xs text-gray-500">{o.desc}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={onSkip}
+          className="w-full mt-4 text-xs text-gray-600 hover:text-gray-400 transition-colors py-1"
+        >
+          나중에 답할게요
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ── 토스트 ── */
+function Toast({ message, onClose }: { message: string; onClose: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 4500)
+    return () => clearTimeout(t)
+  }, [onClose])
+  return (
+    <div className="fixed left-1/2 bottom-8 z-40 -translate-x-1/2 animate-pop-in">
+      <div className="bg-indigo-600 text-white text-sm font-semibold px-5 py-3 rounded-2xl shadow-2xl shadow-indigo-900/50 flex items-center gap-2 max-w-[90vw]">
+        <span>✨</span>
+        <span>{message}</span>
+      </div>
+    </div>
+  )
+}
+
 /* ── 메인 페이지 ── */
 export default function DashboardPage() {
   const router = useRouter()
@@ -378,6 +448,12 @@ export default function DashboardPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [generatingId, setGeneratingId] = useState<string | null>(null)
+
+  // 회고 모달 상태
+  const [reflectingGoalId, setReflectingGoalId] = useState<string | null>(null)
+
+  // 토스트 (조정 안내)
+  const [toast, setToast] = useState<string | null>(null)
 
   const fetchGoals = useCallback(async () => {
     try {
@@ -417,7 +493,46 @@ export default function DashboardPage() {
           ),
         }
       ))
+      return
     }
+
+    // 회고 모달 트리거 — 오늘 3개 모두 완료 + 아직 평가 안 됨
+    setGoals((latest) => {
+      const target = latest.find((g) => g.id === goalId)
+      if (target && target.dailyTasks.length > 0) {
+        const allDone = target.dailyTasks.every((t) => t.completed)
+        const notReflected = target.dailyTasks.every((t) => t.difficulty == null)
+        if (allDone && notReflected) {
+          // 살짝 딜레이 — 체크 애니메이션 보고 모달
+          setTimeout(() => setReflectingGoalId(goalId), 350)
+        }
+      }
+      return latest
+    })
+  }
+
+  const handleReflect = async (difficulty: 1 | 2 | 3) => {
+    if (!reflectingGoalId) return
+    const goalId = reflectingGoalId
+    setReflectingGoalId(null)
+    // 낙관적 업데이트
+    setGoals((prev) => prev.map((g) =>
+      g.id !== goalId ? g : {
+        ...g,
+        dailyTasks: g.dailyTasks.map((t) => ({ ...t, difficulty })),
+      }
+    ))
+    await fetch('/api/tasks/reflect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ goalId, difficulty }),
+    })
+    const messages = {
+      1: '내일은 분량을 가볍게 조정해드릴게요',
+      2: '좋아요! 이 페이스 그대로',
+      3: '내일은 더 도전적인 작업으로 준비할게요',
+    }
+    setToast(messages[difficulty])
   }
 
   const handleGenerate = async (goalId: string) => {
@@ -428,7 +543,13 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ goalId }),
       })
-      if (res.ok) await fetchGoals()
+      if (res.ok) {
+        const data = await res.json()
+        await fetchGoals()
+        if (data?.adjustmentNote) {
+          setToast(data.adjustmentNote)
+        }
+      }
     } finally {
       setGeneratingId(null)
     }
@@ -570,6 +691,16 @@ export default function DashboardPage() {
           </div>
         </>
       )}
+
+      {/* 회고 모달 — 오늘 3개 모두 완료 시 */}
+      <ReflectionModal
+        open={reflectingGoalId !== null}
+        onSubmit={handleReflect}
+        onSkip={() => setReflectingGoalId(null)}
+      />
+
+      {/* 토스트 — 회고 응답 또는 다음날 조정 안내 */}
+      {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   )
 }

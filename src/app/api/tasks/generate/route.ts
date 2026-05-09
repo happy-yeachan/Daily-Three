@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
     previousTasks = await prisma.dailyTask.findMany({
       where: { goalId, date: { gte: prevStart, lt: prevEnd } },
       orderBy: { createdAt: 'asc' },
-      select: { title: true, completed: true },
+      select: { title: true, completed: true, difficulty: true },
     })
   }
 
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     : null
 
   // 6. 모든 컨텍스트 mock에 전달
-  const taskTitles = mockGenerateTasks(
+  const result = mockGenerateTasks(
     goal.title,
     diagnosis,
     previousTasks,
@@ -94,12 +94,12 @@ export async function POST(req: NextRequest) {
 
   // 7. 저장
   const tasks = await prisma.$transaction(
-    taskTitles.map((title) =>
+    result.titles.map((title) =>
       prisma.dailyTask.create({
         data: { title, goalId, date: new Date(), dayIndex },
       })
     )
   )
 
-  return NextResponse.json(tasks, { status: 201 })
+  return NextResponse.json({ tasks, adjustmentNote: result.adjustmentNote }, { status: 201 })
 }
