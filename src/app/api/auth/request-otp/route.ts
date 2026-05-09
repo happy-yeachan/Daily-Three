@@ -25,16 +25,14 @@ export async function POST(req: NextRequest) {
     data: { phone, code, expiresAt },
   })
 
-  // MVP: 실제 SMS 대신 서버 터미널에 출력
-  console.log('\n' + '='.repeat(50))
-  console.log('📱  [OTP Mock] 인증번호 발송 (SMS 미연동 상태)')
-  console.log(`    번호     : ${phone}`)
-  console.log(`    인증번호 : \x1b[33m${code}\x1b[0m`)
-  console.log(`    만료     : 5분`)
-  console.log('='.repeat(50) + '\n')
+  console.log(`[OTP Mock] ${phone} → ${code}`)
+
+  // 개발 환경에서는 응답에 OTP를 포함해 브라우저에서 바로 확인 가능
+  const isDev = process.env.NODE_ENV !== 'production'
 
   return NextResponse.json({
     success: true,
-    message: '인증번호를 발송했습니다. 서버 터미널을 확인하세요.',
+    message: isDev ? null : '인증번호를 발송했습니다.',
+    devCode: isDev ? code : undefined,
   })
 }

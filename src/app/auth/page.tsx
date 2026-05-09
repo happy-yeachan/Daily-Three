@@ -12,7 +12,7 @@ export default function AuthPage() {
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [hint, setHint] = useState('')
+  const [devCode, setDevCode] = useState('')
 
   const handleRequestOtp = async () => {
     setError('')
@@ -25,7 +25,10 @@ export default function AuthPage() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setHint(data.message)
+      if (data.devCode) {
+        setDevCode(data.devCode)
+        setOtp(data.devCode) // 자동 입력
+      }
       setStep('otp')
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '오류가 발생했습니다.')
@@ -114,13 +117,20 @@ export default function AuthPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="bg-gray-800/60 rounded-xl px-4 py-3 text-sm">
-              <span className="text-gray-400">발송 번호: </span>
-              <span className="text-white font-semibold">{phone}</span>
-              <p className="mt-1 text-indigo-400 text-xs">
-                ⚠️ 서버 터미널에서 인증번호를 확인하세요.
-              </p>
-            </div>
+            {devCode ? (
+              <div className="bg-indigo-950/70 border border-indigo-800/60 rounded-xl px-4 py-3 text-center">
+                <p className="text-xs text-indigo-400 mb-1">개발 모드 — 인증번호</p>
+                <p className="text-3xl font-black tracking-[0.4em] text-indigo-300 font-mono">
+                  {devCode}
+                </p>
+                <p className="text-xs text-indigo-600 mt-1">입력란에 자동으로 채워졌어요</p>
+              </div>
+            ) : (
+              <div className="bg-gray-800/60 rounded-xl px-4 py-3 text-sm">
+                <span className="text-gray-400">발송 번호: </span>
+                <span className="text-white font-semibold">{phone}</span>
+              </div>
+            )}
 
             <div>
               <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2">
@@ -159,7 +169,7 @@ export default function AuthPage() {
                 setStep('phone')
                 setOtp('')
                 setError('')
-                setHint('')
+                setDevCode('')
               }}
               className="w-full text-gray-600 hover:text-gray-400 text-xs py-1 transition-colors"
             >
@@ -172,9 +182,6 @@ export default function AuthPage() {
           <p className="mt-4 text-center text-sm text-red-400 bg-red-400/10 rounded-lg py-2 px-3">
             {error}
           </p>
-        )}
-        {hint && !error && step === 'otp' && (
-          <p className="mt-4 text-center text-sm text-green-400">{hint}</p>
         )}
       </div>
     </div>
