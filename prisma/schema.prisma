@@ -1,0 +1,46 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  phone     String    @unique
+  createdAt DateTime  @default(now())
+  goals     Goal[]
+  otpCodes  OtpCode[]
+}
+
+model OtpCode {
+  id        String   @id @default(cuid())
+  phone     String
+  code      String
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Goal {
+  id         String      @id @default(cuid())
+  title      String
+  deadline   DateTime?
+  isActive   Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyTasks DailyTask[]
+}
+
+model DailyTask {
+  id        String   @id @default(cuid())
+  title     String
+  completed Boolean  @default(false)
+  date      DateTime @default(now())
+  createdAt DateTime @default(now())
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+}
