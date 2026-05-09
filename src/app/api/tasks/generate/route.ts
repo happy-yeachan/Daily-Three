@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { mockGenerateTasks } from '@/lib/ai-mock'
+import { mockGenerateTasks, DiagnosisData } from '@/lib/ai-mock'
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
@@ -28,8 +28,13 @@ export async function POST(req: NextRequest) {
     where: { goalId, date: { gte: today, lt: tomorrow } },
   })
 
-  // MVP: AI 목업 — 항상 정확히 3개
-  const taskTitles = mockGenerateTasks(goal.title)
+  // 진단 데이터를 파싱해 mock에 전달
+  const diagnosis: DiagnosisData | null = goal.diagnosis
+    ? (JSON.parse(goal.diagnosis) as DiagnosisData)
+    : null
+
+  // MVP: AI 목업 — 항상 정확히 3개, 진단 결과 반영
+  const taskTitles = mockGenerateTasks(goal.title, diagnosis)
 
   const tasks = await prisma.$transaction(
     taskTitles.map((title) =>

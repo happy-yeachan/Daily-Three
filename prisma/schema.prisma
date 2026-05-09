@@ -28,6 +28,7 @@ model Goal {
   title      String
   deadline   DateTime?
   isActive   Boolean     @default(true)
+  diagnosis  String?     // JSON: { questions: [...], answers: { qid: value } }
   createdAt  DateTime    @default(now())
   userId     String
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)

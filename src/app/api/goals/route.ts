@@ -37,6 +37,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const title: string = (body.title ?? '').trim()
   const deadline: string | null = body.deadline ?? null
+  const diagnosis = body.diagnosis ?? null
 
   if (!title) {
     return NextResponse.json({ error: '목표를 입력해주세요.' }, { status: 400 })
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest) {
     data: {
       title,
       deadline: deadline ? new Date(deadline) : null,
+      diagnosis: diagnosis ? JSON.stringify(diagnosis) : null,
       userId: session.userId,
     },
   })
