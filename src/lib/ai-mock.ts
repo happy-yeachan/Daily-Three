@@ -326,17 +326,27 @@ export function mockSuggestDeadline(
 }
 
 /* ──────────────────────────────────────────
-   5) 오늘의 태스크 3개 — 진단 결과 반영
+   5) 오늘의 태스크 3개 — 진단 + 어제 컨텍스트 반영
    ────────────────────────────────────────── */
+
+export interface PreviousTaskSnapshot {
+  title: string
+  completed: boolean
+}
 
 export function mockGenerateTasks(
   goalTitle: string,
-  diagnosis?: DiagnosisData | null
+  diagnosis?: DiagnosisData | null,
+  previous?: PreviousTaskSnapshot[] | null,
+  dayIndex?: number
 ): string[] {
   const ans = diagnosis?.answers ?? {}
   const time = ans.time ?? ''
   const level = ans.level ?? ''
+  const day = Math.max(1, dayIndex ?? 1)
+  const prev = previous ?? []
 
+  // 가용 시간 → 분 단위
   const minutes =
     time === '15분 이내' ? 10 :
     time === '30분 정도' ? 25 :
@@ -346,23 +356,59 @@ export function mockGenerateTasks(
   const isBeginner = /처음|아이디어|알파벳|0에서|거의 안|거의 신경/.test(level)
   const isAdvanced = /익숙|운영|능숙|체계적|꾸준히|매일|깊이/.test(level)
 
-  if (isBeginner) {
+  // ── Day 1 또는 이전 데이터 없음: 진단만 반영 ──
+  if (day === 1 || prev.length === 0) {
+    if (isBeginner) {
+      return [
+        `[${goalTitle}] 가장 쉬운 첫 단계 1가지만 ${minutes}분 안에 시도하기`,
+        `관련 기초 자료(글/영상) ${Math.max(5, Math.floor(minutes / 3))}분 훑어보고 핵심 키워드 3개 메모`,
+        `오늘 한 일 1줄 + 막혔던 점 1줄 기록 — 내일 첫 행동 미리 정하기`,
+      ]
+    }
+    if (isAdvanced) {
+      return [
+        `[${goalTitle}] 가장 임팩트 큰 작업 1가지에 ${minutes}분 깊게 몰입`,
+        `진행 중 막힌 지점 또는 개선 포인트 ${Math.floor(minutes / 3)}분 분석 + 해결안 1개 도출`,
+        `오늘 결과물 5줄 회고 + 다음 마일스톤까지의 핵심 단계 1개 결정`,
+      ]
+    }
     return [
-      `[${goalTitle}] 가장 쉬운 첫 단계 1가지만 ${minutes}분 안에 시도하기`,
-      `관련 기초 자료(글/영상) ${Math.max(5, Math.floor(minutes / 3))}분 훑어보고 핵심 키워드 3개 메모`,
-      `오늘 한 일 1줄 + 막혔던 점 1줄 기록 — 내일 첫 행동 미리 정하기`,
+      `[${goalTitle}] 핵심 작업 1가지를 ${minutes}분 집중 실행`,
+      `관련 자료/레퍼런스 ${Math.floor(minutes / 3)}분 리서치 + 인사이트 3줄 메모`,
+      `오늘 진행 5줄 회고 + 내일 첫 번째 행동 미리 결정`,
     ]
   }
-  if (isAdvanced) {
+
+  // ── Day 2+: 어제 결과 기반 동적 생성 ──
+  const completed = prev.filter((t) => t.completed)
+  const failed = prev.filter((t) => !t.completed)
+  const half = Math.max(5, Math.floor(minutes / 2))
+  const tiny = Math.max(5, Math.floor(minutes / 3))
+
+  // 어제 모두 완료 → 한 단계 업
+  if (failed.length === 0) {
     return [
-      `[${goalTitle}] 가장 임팩트 큰 작업 1가지에 ${minutes}분 깊게 몰입`,
-      `진행 중 막힌 지점 또는 개선 포인트 ${Math.floor(minutes / 3)}분 분석 + 해결안 1개 도출`,
-      `오늘 결과물 5줄 회고 + 다음 마일스톤까지의 핵심 단계 1개 결정`,
+      `[Day ${day}] 어제 3개 모두 완료! 한 단계 더 도전적인 작업 ${minutes}분 시도`,
+      `흐름을 이어 이전보다 깊이 있는 부분 ${half}분 — 막히면 일부만 진행 OK`,
+      `여기까지 진행을 5줄 회고 + 다음 도약 포인트 1가지 결정`,
     ]
   }
+
+  // 어제 모두 미완료 → 더 작게 + 격려
+  if (completed.length === 0) {
+    return [
+      `[Day ${day}] 어제는 잠깐 어려웠죠. 오늘은 단 ${tiny}분만, 가장 작은 행동 하나만`,
+      `완료 후 잠시 쉬고 — 어제 막혔던 이유 1줄 + 오늘 다른 시도 1줄 적기`,
+      `오늘 한 작은 한 걸음을 1줄로 기록 — 내일은 여기서 다시 시작`,
+    ]
+  }
+
+  // 일부 미완료 → 미완료는 더 작게 재시도 + 새 단계 + 회고
+  const focusFailed = failed[0]
+  const truncated = focusFailed.title.length > 35 ? focusFailed.title.slice(0, 35) + '…' : focusFailed.title
   return [
-    `[${goalTitle}] 핵심 작업 1가지를 ${minutes}분 집중 실행`,
-    `관련 자료/레퍼런스 ${Math.floor(minutes / 3)}분 리서치 + 인사이트 3줄 메모`,
-    `오늘 진행 5줄 회고 + 내일 첫 번째 행동 미리 결정`,
+    `[이어서] 어제 못 끝낸 "${truncated}" — 짧게 ${half}분만 다시 시도`,
+    `[다음 단계] ${goalTitle}의 새로운 작업 ${minutes}분 실행`,
+    `[회고] 어제 ${completed.length}개 완료한 흐름 정리 + 오늘 1가지 더 잘 할 점 결정`,
   ]
 }

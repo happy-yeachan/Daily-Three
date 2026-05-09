@@ -27,7 +27,18 @@ export async function GET() {
     orderBy: { createdAt: 'desc' },
   })
 
-  return NextResponse.json(goals)
+  // 각 목표의 currentDayIndex(시작일 기준 며칠째)를 derived field로 추가
+  const enriched = goals.map((g) => {
+    const goalStart = new Date(g.createdAt)
+    goalStart.setHours(0, 0, 0, 0)
+    const currentDayIndex = Math.max(
+      1,
+      Math.floor((today.getTime() - goalStart.getTime()) / 86400000) + 1
+    )
+    return { ...g, currentDayIndex }
+  })
+
+  return NextResponse.json(enriched)
 }
 
 export async function POST(req: NextRequest) {

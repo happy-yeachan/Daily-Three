@@ -15,6 +15,7 @@ interface Goal {
   title: string
   deadline: string | null
   createdAt: string
+  currentDayIndex: number
   dailyTasks: DailyTask[]
 }
 
@@ -101,8 +102,9 @@ function SidebarGoalItem({ goal, selected, onClick }: { goal: Goal; selected: bo
                   ${selected
                     ? 'bg-indigo-600/20 border border-indigo-600/40'
                     : 'hover:bg-gray-800/60 border border-transparent'}`}>
-      <div className="flex items-center gap-2 mb-1">
+      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
         {selected && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />}
+        <span className="text-[10px] font-bold text-indigo-400">Day {goal.currentDayIndex}</span>
         <DeadlineBadge deadline={goal.deadline} />
       </div>
       <p className={`text-sm font-semibold leading-snug line-clamp-2 ${selected ? 'text-white' : 'text-gray-300'}`}>
@@ -172,7 +174,9 @@ function GoalTaskPanel({
                          : 'bg-gradient-to-r from-indigo-950/30 to-gray-900/60 border-indigo-900/30'}`}>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-xs text-gray-600 uppercase tracking-widest">목표</span>
+            <span className="text-xs font-bold text-indigo-400 bg-indigo-950/60 border border-indigo-900/40 px-2 py-0.5 rounded-full">
+              Day {goal.currentDayIndex}
+            </span>
             <DeadlineBadge deadline={goal.deadline} />
           </div>
           <p className="text-white font-black text-lg leading-snug">{goal.title}</p>
