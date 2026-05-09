@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { mockGenerateTasks, DiagnosisData, PreviousTaskSnapshot } from '@/lib/ai-mock'
+import {
+  mockGenerateTasks,
+  DiagnosisData,
+  PreviousTaskSnapshot,
+  CurrentMilestone,
+} from '@/lib/ai-mock'
 
 function startOfDay(d: Date) {
   const x = new Date(d)
@@ -18,6 +23,7 @@ export async function POST(req: NextRequest) {
 
   const goal = await prisma.goal.findFirst({
     where: { id: goalId, userId: session.userId },
+    include: { milestones: { orderBy: { order: 'asc' } } },
   })
 
   if (!goal) {
@@ -28,19 +34,19 @@ export async function POST(req: NextRequest) {
   const tomorrowStart = new Date(todayStart)
   tomorrowStart.setDate(tomorrowStart.getDate() + 1)
 
-  // ── 1. 오늘이 며칠째인지 계산 (목표 등록 후) ──
+  // 1. dayIndex
   const goalStart = startOfDay(new Date(goal.createdAt))
   const dayIndex = Math.max(
     1,
     Math.floor((todayStart.getTime() - goalStart.getTime()) / 86400000) + 1
   )
 
-  // ── 2. 오늘 이미 생성된 태스크 삭제 (재생성 허용) ──
+  // 2. 오늘 기존 태스크 삭제
   await prisma.dailyTask.deleteMany({
     where: { goalId, date: { gte: todayStart, lt: tomorrowStart } },
   })
 
-  // ── 3. 가장 최근 이전 묶음(어제 또는 마지막 활동일) 조회 ──
+  // 3. 어제 또는 가장 최근 이전 묶음
   const lastPrev = await prisma.dailyTask.findFirst({
     where: { goalId, date: { lt: todayStart } },
     orderBy: { date: 'desc' },
@@ -59,15 +65,34 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // ── 4. 진단 데이터 파싱 ──
+  // 4. 현재 마일스톤 = 첫 미완료
+  const currentMs = goal.milestones.find((m) => !m.completed)
+  let milestoneCtx: CurrentMilestone | null = null
+  if (currentMs) {
+    const daysLeft = currentMs.targetDays - dayIndex + 1
+    milestoneCtx = {
+      title: currentMs.title,
+      order: currentMs.order,
+      totalCount: goal.milestones.length,
+      daysLeft,
+    }
+  }
+
+  // 5. 진단
   const diagnosis: DiagnosisData | null = goal.diagnosis
     ? (JSON.parse(goal.diagnosis) as DiagnosisData)
     : null
 
-  // ── 5. mock에 컨텍스트 모두 전달 ──
-  const taskTitles = mockGenerateTasks(goal.title, diagnosis, previousTasks, dayIndex)
+  // 6. 모든 컨텍스트 mock에 전달
+  const taskTitles = mockGenerateTasks(
+    goal.title,
+    diagnosis,
+    previousTasks,
+    dayIndex,
+    milestoneCtx
+  )
 
-  // ── 6. dayIndex와 함께 저장 ──
+  // 7. 저장
   const tasks = await prisma.$transaction(
     taskTitles.map((title) =>
       prisma.dailyTask.create({

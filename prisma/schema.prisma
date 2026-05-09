@@ -33,6 +33,22 @@ model Goal {
   userId     String
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   dailyTasks DailyTask[]
+  milestones Milestone[]
+}
+
+model Milestone {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  order       Int                              // 1, 2, 3, 4 — 표시 순서
+  targetDays  Int                              // 목표 시작 후 며칠 안에 도달
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  goalId      String
+  goal        Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId, order])
 }
 
 model DailyTask {

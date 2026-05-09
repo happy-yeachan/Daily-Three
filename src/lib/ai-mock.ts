@@ -326,8 +326,77 @@ export function mockSuggestDeadline(
 }
 
 /* ──────────────────────────────────────────
-   5) 오늘의 태스크 3개 — 진단 + 어제 컨텍스트 반영
+   5) 마일스톤 자동 생성 — 목표를 2~4 단계로 쪼개기
    ────────────────────────────────────────── */
+
+export interface MilestoneSuggestion {
+  title: string
+  description?: string
+  targetDays: number  // 목표 시작 후 며칠 안에 도달
+}
+
+const MILESTONE_PATTERNS: Record<Domain, string[]> = {
+  english: ['핵심 표현·문법 익히기', '실전 시도 (대화/작문)', '실제 환경에서 적용', '데드라인 직전 점검·리허설'],
+  language: ['기초 문자·발음 익히기', '핵심 표현 200개 외우기', '실전 대화 시도', '능숙도 검증'],
+  fitness: ['습관 안착 (매일 빠짐없이)', '강도/볼륨 올리기', '성과 굳히기·식단 정착'],
+  study: ['전체 범위 한 번 훑기', '핵심 개념·문제 정리', '약점 보완·실전 풀이', '시험/검증'],
+  project: ['스코프·타겟 정의', 'MVP 구축', '실사용자 피드백 받기', '런칭/스케일'],
+  creative: ['컨셉 잡기·레퍼런스 정리', '뼈대 완성', '디테일 다듬기', '발표/공개'],
+  finance: ['현황 파악·고정비 분석', '예산·자동화 설정', '실행 + 정기 리뷰'],
+  general: ['기반 다지기', '본격 실행', '점검 및 다듬기', '마무리·검증'],
+}
+
+/**
+ * 일수와 도메인을 보고 2~4개 마일스톤을 자동 생성합니다.
+ * 목표 등록 시 1회 호출되어 DB에 저장됨.
+ */
+export function mockGenerateMilestones(
+  goalTitle: string,
+  estimatedDays: number,
+  diagnosis?: DiagnosisData | null
+): MilestoneSuggestion[] {
+  const ctx = extractContext(goalTitle)
+  const pool = MILESTONE_PATTERNS[ctx.domain]
+
+  // 일수에 따라 마일스톤 개수 결정
+  const count = estimatedDays < 14 ? 2 : estimatedDays < 30 ? 3 : Math.min(4, pool.length)
+
+  // 누적 비율 (마지막은 항상 100%)
+  const ratios: number[][] = {
+    2: [[0.5, 1.0]],
+    3: [[0.3, 0.65, 1.0]],
+    4: [[0.2, 0.45, 0.75, 1.0]],
+  }[count] || [[0.3, 0.65, 1.0]]
+  const ratio = ratios[0]
+
+  const titles = pool.slice(0, count)
+  const lastIndex = count - 1
+
+  // 마지막 마일스톤은 데드라인까지 — 만약 데드라인이 없으면 estimatedDays 자체
+  return titles.map((title, i) => {
+    const targetDays = i === lastIndex ? estimatedDays : Math.max(1, Math.round(estimatedDays * ratio[i]))
+    return {
+      title,
+      description: i === 0
+        ? '시작 부담을 줄이고 흐름 만들기'
+        : i === lastIndex
+        ? '마무리 단계 — 결과 확정'
+        : undefined,
+      targetDays,
+    }
+  })
+}
+
+/* ──────────────────────────────────────────
+   6) 오늘의 태스크 3개 — 진단 + 어제 + 현재 마일스톤 반영
+   ────────────────────────────────────────── */
+
+export interface CurrentMilestone {
+  title: string
+  order: number
+  totalCount: number
+  daysLeft: number  // 마일스톤 데드라인까지 남은 일수 (음수면 지남)
+}
 
 export interface PreviousTaskSnapshot {
   title: string
@@ -338,7 +407,8 @@ export function mockGenerateTasks(
   goalTitle: string,
   diagnosis?: DiagnosisData | null,
   previous?: PreviousTaskSnapshot[] | null,
-  dayIndex?: number
+  dayIndex?: number,
+  milestone?: CurrentMilestone | null
 ): string[] {
   const ans = diagnosis?.answers ?? {}
   const time = ans.time ?? ''
@@ -346,7 +416,6 @@ export function mockGenerateTasks(
   const day = Math.max(1, dayIndex ?? 1)
   const prev = previous ?? []
 
-  // 가용 시간 → 분 단위
   const minutes =
     time === '15분 이내' ? 10 :
     time === '30분 정도' ? 25 :
@@ -356,24 +425,29 @@ export function mockGenerateTasks(
   const isBeginner = /처음|아이디어|알파벳|0에서|거의 안|거의 신경/.test(level)
   const isAdvanced = /익숙|운영|능숙|체계적|꾸준히|매일|깊이/.test(level)
 
+  // 마일스톤 컨텍스트 prefix — 모든 시나리오에 일관 적용
+  const msPrefix = milestone
+    ? `[마일스톤 ${milestone.order}/${milestone.totalCount}: ${milestone.title}]`
+    : `[${goalTitle}]`
+
   // ── Day 1 또는 이전 데이터 없음: 진단만 반영 ──
   if (day === 1 || prev.length === 0) {
     if (isBeginner) {
       return [
-        `[${goalTitle}] 가장 쉬운 첫 단계 1가지만 ${minutes}분 안에 시도하기`,
+        `${msPrefix} 가장 쉬운 첫 단계 1가지만 ${minutes}분 안에 시도하기`,
         `관련 기초 자료(글/영상) ${Math.max(5, Math.floor(minutes / 3))}분 훑어보고 핵심 키워드 3개 메모`,
         `오늘 한 일 1줄 + 막혔던 점 1줄 기록 — 내일 첫 행동 미리 정하기`,
       ]
     }
     if (isAdvanced) {
       return [
-        `[${goalTitle}] 가장 임팩트 큰 작업 1가지에 ${minutes}분 깊게 몰입`,
+        `${msPrefix} 가장 임팩트 큰 작업 1가지에 ${minutes}분 깊게 몰입`,
         `진행 중 막힌 지점 또는 개선 포인트 ${Math.floor(minutes / 3)}분 분석 + 해결안 1개 도출`,
-        `오늘 결과물 5줄 회고 + 다음 마일스톤까지의 핵심 단계 1개 결정`,
+        `오늘 결과물 5줄 회고 + 이 마일스톤 마무리에 필요한 핵심 단계 1개 결정`,
       ]
     }
     return [
-      `[${goalTitle}] 핵심 작업 1가지를 ${minutes}분 집중 실행`,
+      `${msPrefix} 핵심 작업 1가지를 ${minutes}분 집중 실행`,
       `관련 자료/레퍼런스 ${Math.floor(minutes / 3)}분 리서치 + 인사이트 3줄 메모`,
       `오늘 진행 5줄 회고 + 내일 첫 번째 행동 미리 결정`,
     ]
@@ -385,30 +459,32 @@ export function mockGenerateTasks(
   const half = Math.max(5, Math.floor(minutes / 2))
   const tiny = Math.max(5, Math.floor(minutes / 3))
 
-  // 어제 모두 완료 → 한 단계 업
+  // 마일스톤 마감 압박 — 며칠 남았는지 메시지 강화
+  const pressure = milestone && milestone.daysLeft <= 3 && milestone.daysLeft >= 0
+    ? ` (마일스톤 ${milestone.daysLeft}일 남음)`
+    : ''
+
   if (failed.length === 0) {
     return [
-      `[Day ${day}] 어제 3개 모두 완료! 한 단계 더 도전적인 작업 ${minutes}분 시도`,
+      `${msPrefix} 어제 3개 모두 완료! 한 단계 더 도전적인 작업 ${minutes}분${pressure}`,
       `흐름을 이어 이전보다 깊이 있는 부분 ${half}분 — 막히면 일부만 진행 OK`,
       `여기까지 진행을 5줄 회고 + 다음 도약 포인트 1가지 결정`,
     ]
   }
 
-  // 어제 모두 미완료 → 더 작게 + 격려
   if (completed.length === 0) {
     return [
-      `[Day ${day}] 어제는 잠깐 어려웠죠. 오늘은 단 ${tiny}분만, 가장 작은 행동 하나만`,
+      `${msPrefix} 어제는 잠깐 어려웠죠. 오늘은 단 ${tiny}분만, 가장 작은 행동 하나만`,
       `완료 후 잠시 쉬고 — 어제 막혔던 이유 1줄 + 오늘 다른 시도 1줄 적기`,
       `오늘 한 작은 한 걸음을 1줄로 기록 — 내일은 여기서 다시 시작`,
     ]
   }
 
-  // 일부 미완료 → 미완료는 더 작게 재시도 + 새 단계 + 회고
   const focusFailed = failed[0]
   const truncated = focusFailed.title.length > 35 ? focusFailed.title.slice(0, 35) + '…' : focusFailed.title
   return [
-    `[이어서] 어제 못 끝낸 "${truncated}" — 짧게 ${half}분만 다시 시도`,
-    `[다음 단계] ${goalTitle}의 새로운 작업 ${minutes}분 실행`,
+    `${msPrefix} [이어서] 어제 못 끝낸 "${truncated}" — 짧게 ${half}분만 다시 시도`,
+    `[다음 단계] ${goalTitle}의 새로운 작업 ${minutes}분 실행${pressure}`,
     `[회고] 어제 ${completed.length}개 완료한 흐름 정리 + 오늘 1가지 더 잘 할 점 결정`,
   ]
 }

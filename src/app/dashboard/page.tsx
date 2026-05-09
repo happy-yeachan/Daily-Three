@@ -10,13 +10,24 @@ interface DailyTask {
   completed: boolean
 }
 
+interface Milestone {
+  id: string
+  title: string
+  description: string | null
+  order: number
+  targetDays: number
+  completed: boolean
+}
+
 interface Goal {
   id: string
   title: string
   deadline: string | null
   createdAt: string
   currentDayIndex: number
+  currentMilestoneId: string | null
   dailyTasks: DailyTask[]
+  milestones: Milestone[]
 }
 
 /* ── 진행률 링 ── */
@@ -57,6 +68,103 @@ function DeadlineBadge({ deadline }: { deadline: string | null }) {
     ? 'text-amber-400 bg-amber-950/60 border-amber-900/40'
     : 'text-red-400 bg-red-950/60 border-red-900/40'
   return <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${cls}`}>{label}</span>
+}
+
+/* ── 마일스톤 트랙 ── */
+function MilestoneTrack({
+  milestones,
+  currentMilestoneId,
+  currentDayIndex,
+  onToggle,
+}: {
+  milestones: Milestone[]
+  currentMilestoneId: string | null
+  currentDayIndex: number
+  onToggle: (id: string) => void
+}) {
+  if (milestones.length === 0) return null
+  const current = milestones.find((m) => m.id === currentMilestoneId)
+  const completedCount = milestones.filter((m) => m.completed).length
+
+  return (
+    <div className="space-y-3">
+      {/* 헤더 */}
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs text-gray-600 uppercase tracking-widest font-bold">
+          마일스톤 {completedCount}/{milestones.length}
+        </span>
+        {current && (
+          <span className={`text-xs font-bold ${
+            current.targetDays - currentDayIndex < 0
+              ? 'text-red-400'
+              : current.targetDays - currentDayIndex <= 3
+              ? 'text-amber-400'
+              : 'text-gray-500'
+          }`}>
+            {current.targetDays - currentDayIndex >= 0
+              ? `${current.targetDays - currentDayIndex + 1}일 남음`
+              : `${Math.abs(current.targetDays - currentDayIndex)}일 지남`}
+          </span>
+        )}
+      </div>
+
+      {/* 진행 트랙 — 도트 + 연결선 */}
+      <div className="flex items-center">
+        {milestones.map((m, i) => {
+          const isCurrent = m.id === currentMilestoneId
+          const isLast = i === milestones.length - 1
+          return (
+            <div key={m.id} className="flex items-center flex-1 last:flex-initial">
+              <button
+                onClick={() => onToggle(m.id)}
+                className={`relative flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center
+                            transition-all duration-200 hover:scale-110
+                            ${m.completed
+                              ? 'bg-green-600 border-green-500'
+                              : isCurrent
+                              ? 'bg-indigo-600 border-indigo-400 ring-4 ring-indigo-600/20'
+                              : 'bg-gray-900 border-gray-700'}`}
+              >
+                {m.completed ? (
+                  <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <span className={`text-[10px] font-black ${isCurrent ? 'text-white' : 'text-gray-600'}`}>
+                    {m.order}
+                  </span>
+                )}
+              </button>
+              {!isLast && (
+                <div className={`flex-1 h-0.5 mx-1 transition-colors duration-300
+                                 ${m.completed ? 'bg-green-600/60' : 'bg-gray-800'}`} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* 현재 마일스톤 텍스트 */}
+      {current && (
+        <div className="bg-gray-900/50 border border-gray-800 rounded-xl px-3 py-2.5">
+          <p className="text-xs text-indigo-400 font-bold mb-0.5">
+            현재 단계 · Step {current.order}
+          </p>
+          <p className="text-sm text-gray-200 font-semibold leading-snug">{current.title}</p>
+          {current.description && (
+            <p className="text-xs text-gray-500 mt-1">{current.description}</p>
+          )}
+        </div>
+      )}
+
+      {/* 모두 완료 */}
+      {!current && completedCount === milestones.length && (
+        <div className="bg-green-950/40 border border-green-900/40 rounded-xl px-3 py-2.5 text-center">
+          <p className="text-sm text-green-400 font-bold">🎉 모든 마일스톤 완료!</p>
+        </div>
+      )}
+    </div>
+  )
 }
 
 /* ── 태스크 카드 ── */
@@ -153,12 +261,14 @@ function GoalTaskPanel({
   onToggle,
   onGenerate,
   onDelete,
+  onToggleMilestone,
   isGenerating,
 }: {
   goal: Goal
   onToggle: (taskId: string, goalId: string) => void
   onGenerate: (goalId: string) => void
   onDelete: (goalId: string) => void
+  onToggleMilestone: (milestoneId: string, goalId: string) => void
   isGenerating: boolean
 }) {
   const completed = goal.dailyTasks.filter((t) => t.completed).length
@@ -188,6 +298,18 @@ function GoalTaskPanel({
         </div>
         {total > 0 && <ProgressRing completed={completed} total={total} size={72} />}
       </div>
+
+      {/* 마일스톤 트랙 */}
+      {goal.milestones.length > 0 && (
+        <div className="mb-5">
+          <MilestoneTrack
+            milestones={goal.milestones}
+            currentMilestoneId={goal.currentMilestoneId}
+            currentDayIndex={goal.currentDayIndex}
+            onToggle={(id) => onToggleMilestone(id, goal.id)}
+          />
+        </div>
+      )}
 
       {/* 태스크 없음 */}
       {total === 0 && (
@@ -297,6 +419,33 @@ export default function DashboardPage() {
     if (!confirm('이 목표와 할 일을 모두 삭제할까요?')) return
     const res = await fetch(`/api/goals/${goalId}`, { method: 'DELETE' })
     if (res.ok) await fetchGoals()
+  }
+
+  const handleToggleMilestone = async (milestoneId: string, goalId: string) => {
+    // 낙관적 업데이트
+    setGoals((prev) => prev.map((g) =>
+      g.id !== goalId ? g : {
+        ...g,
+        milestones: g.milestones.map((m) =>
+          m.id === milestoneId ? { ...m, completed: !m.completed } : m
+        ),
+      }
+    ))
+    const res = await fetch(`/api/milestones/${milestoneId}/toggle`, { method: 'PATCH' })
+    if (!res.ok) {
+      // 롤백
+      setGoals((prev) => prev.map((g) =>
+        g.id !== goalId ? g : {
+          ...g,
+          milestones: g.milestones.map((m) =>
+            m.id === milestoneId ? { ...m, completed: !m.completed } : m
+          ),
+        }
+      ))
+    } else {
+      // currentMilestoneId 재계산을 위해 refetch (가벼운 응답)
+      await fetchGoals()
+    }
   }
 
   const handleLogout = async () => {
@@ -420,6 +569,7 @@ export default function DashboardPage() {
                     onToggle={handleToggle}
                     onGenerate={handleGenerate}
                     onDelete={handleDelete}
+                    onToggleMilestone={handleToggleMilestone}
                     isGenerating={generatingId === selected.id}
                   />
                 ) : null}
