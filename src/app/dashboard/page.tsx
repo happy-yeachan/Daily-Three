@@ -70,7 +70,10 @@ function DeadlineBadge({ deadline }: { deadline: string | null }) {
   return <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${cls}`}>{label}</span>
 }
 
-/* ── 단계 트랙 (Step Track) ── */
+/* ──────────────────────────────────────────
+   장기 진행도 — 단계(Milestone) 트랙
+   "오늘의 할 일"보다 한 단계 큰 개념. 시각적으로 옅고 보조적
+   ────────────────────────────────────────── */
 function MilestoneTrack({
   milestones,
   currentMilestoneId,
@@ -85,33 +88,37 @@ function MilestoneTrack({
   if (milestones.length === 0) return null
   const current = milestones.find((m) => m.id === currentMilestoneId)
   const completedCount = milestones.filter((m) => m.completed).length
-
-  // 토글 가능 여부 — 이미 완료됐거나 현재(첫 미완료) 단계만
   const isToggleable = (m: Milestone) => m.completed || m.id === currentMilestoneId
 
+  // 마감 압박 색상
+  const daysLeft = current ? current.targetDays - currentDayIndex + 1 : null
+  const pressureColor = daysLeft === null
+    ? 'text-gray-500'
+    : daysLeft < 0 ? 'text-red-400'
+    : daysLeft <= 3 ? 'text-amber-400'
+    : 'text-gray-500'
+
   return (
-    <div className="space-y-3">
-      {/* 헤더 */}
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs text-gray-600 uppercase tracking-widest font-bold">
-          전체 {milestones.length}단계 · {completedCount}개 완료
-        </span>
-        {current && (
-          <span className={`text-xs font-bold ${
-            current.targetDays - currentDayIndex < 0
-              ? 'text-red-400'
-              : current.targetDays - currentDayIndex <= 3
-              ? 'text-amber-400'
-              : 'text-gray-500'
-          }`}>
-            {current.targetDays - currentDayIndex >= 0
-              ? `${current.targetDays - currentDayIndex + 1}일 남음`
-              : `${Math.abs(current.targetDays - currentDayIndex)}일 지남`}
+    <section className="rounded-xl bg-gray-900/30 border border-gray-800/60 px-4 py-3.5 space-y-3">
+      {/* 섹션 식별 라벨 — 약하게 */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-[0.2em] text-gray-600 font-bold">
+            장기 진행
+          </span>
+          <span className="text-[10px] text-gray-700">·</span>
+          <span className="text-[10px] text-gray-500">
+            {completedCount}/{milestones.length} 단계 완료
+          </span>
+        </div>
+        {daysLeft !== null && (
+          <span className={`text-[10px] font-bold ${pressureColor}`}>
+            {daysLeft >= 0 ? `${daysLeft}일 남음` : `${Math.abs(daysLeft)}일 지남`}
           </span>
         )}
       </div>
 
-      {/* 진행 트랙 */}
+      {/* 도트 트랙 — 더 컴팩트 */}
       <div className="flex items-center">
         {milestones.map((m, i) => {
           const isCurrent = m.id === currentMilestoneId
@@ -127,7 +134,7 @@ function MilestoneTrack({
                     ? m.completed ? '클릭하면 미완료로 되돌립니다' : '클릭하면 이 단계를 완료 처리합니다'
                     : '이전 단계를 먼저 완료해주세요'
                 }
-                className={`relative flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center
+                className={`relative flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center
                             transition-all duration-200
                             ${canToggle ? 'hover:scale-110 cursor-pointer' : 'cursor-not-allowed opacity-50'}
                             ${m.completed
@@ -137,11 +144,11 @@ function MilestoneTrack({
                               : 'bg-gray-900 border-gray-700'}`}
               >
                 {m.completed ? (
-                  <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                   </svg>
                 ) : (
-                  <span className={`text-[10px] font-black ${isCurrent ? 'text-white' : 'text-gray-600'}`}>
+                  <span className={`text-[9px] font-black ${isCurrent ? 'text-white' : 'text-gray-600'}`}>
                     {m.order}
                   </span>
                 )}
@@ -155,26 +162,21 @@ function MilestoneTrack({
         })}
       </div>
 
-      {/* 현재 단계 카드 */}
+      {/* 현재 단계 — 인라인 텍스트로 (별도 카드 X) */}
       {current && (
-        <div className="bg-gray-900/50 border border-gray-800 rounded-xl px-3 py-2.5">
-          <p className="text-xs text-indigo-400 font-bold mb-0.5">
-            지금 진행 중 · {current.order}단계
-          </p>
-          <p className="text-sm text-gray-200 font-semibold leading-snug">{current.title}</p>
+        <p className="text-xs leading-relaxed text-gray-400">
+          <span className="text-indigo-400 font-bold">현재 {current.order}단계 :</span>{' '}
+          <span className="text-gray-300">{current.title}</span>
           {current.description && (
-            <p className="text-xs text-gray-500 mt-1">{current.description}</p>
+            <span className="text-gray-600"> — {current.description}</span>
           )}
-        </div>
+        </p>
       )}
 
-      {/* 모두 완료 */}
       {!current && completedCount === milestones.length && (
-        <div className="bg-green-950/40 border border-green-900/40 rounded-xl px-3 py-2.5 text-center">
-          <p className="text-sm text-green-400 font-bold">🎉 모든 단계 완료!</p>
-        </div>
+        <p className="text-xs text-green-400 font-bold text-center">🎉 모든 단계 완료!</p>
       )}
-    </div>
+    </section>
   )
 }
 
@@ -301,18 +303,16 @@ function GoalTaskPanel({
             <DeadlineBadge deadline={goal.deadline} />
           </div>
           <p className="text-white font-black text-lg leading-snug">{goal.title}</p>
-          {total > 0 && (
-            <p className={`text-sm mt-1.5 font-medium ${allDone ? 'text-green-400' : 'text-gray-500'}`}>
-              {allDone ? '🎉 오늘 완료!' : `${total - completed}개 남았어요`}
-            </p>
+          {allDone && (
+            <p className="text-sm mt-1.5 font-medium text-green-400">🎉 오늘 완료!</p>
           )}
         </div>
         {total > 0 && <ProgressRing completed={completed} total={total} size={72} />}
       </div>
 
-      {/* 마일스톤 트랙 */}
+      {/* ───── 보조: 장기 진행도(단계) ───── */}
       {goal.milestones.length > 0 && (
-        <div className="mb-5">
+        <div className="mb-8">
           <MilestoneTrack
             milestones={goal.milestones}
             currentMilestoneId={goal.currentMilestoneId}
@@ -322,30 +322,47 @@ function GoalTaskPanel({
         </div>
       )}
 
-      {/* 태스크 없음 */}
-      {total === 0 && (
-        <div className="flex-1 flex flex-col items-center justify-center border border-dashed border-gray-800 rounded-2xl gap-4 py-12">
-          <p className="text-gray-600 text-sm">아직 오늘의 할 일이 없어요.</p>
-          <button onClick={() => onGenerate(goal.id)} disabled={isGenerating}
-            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40
-                       text-white font-bold text-sm px-6 py-3 rounded-xl
-                       transition-all active:scale-95 flex items-center gap-2">
-            {isGenerating
-              ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />생성 중…</>
-              : '✨ 오늘의 할 일 3개 생성하기'}
-          </button>
+      {/* ───── 메인: 오늘의 할 일 ───── */}
+      <section>
+        <div className="flex items-baseline justify-between mb-3 px-1">
+          <h3 className="text-base font-black text-white flex items-center gap-2">
+            🎯 오늘의 할 일
+          </h3>
+          {total > 0 && (
+            <span className="text-xs text-gray-500 font-semibold">
+              <span className={completed === total ? 'text-green-400' : 'text-indigo-400'}>
+                {completed}
+              </span>
+              <span className="text-gray-700"> / {total} 완료</span>
+            </span>
+          )}
         </div>
-      )}
 
-      {/* 태스크 목록 */}
-      {total > 0 && (
-        <div className="space-y-2.5">
-          {goal.dailyTasks.map((task, i) => (
-            <TaskCard key={task.id} task={task} index={i}
-              onToggle={(id) => onToggle(id, goal.id)} />
-          ))}
-        </div>
-      )}
+        {/* 태스크 없음 */}
+        {total === 0 && (
+          <div className="flex flex-col items-center justify-center border border-dashed border-gray-800 rounded-2xl gap-4 py-12">
+            <p className="text-gray-600 text-sm">아직 오늘의 할 일이 없어요.</p>
+            <button onClick={() => onGenerate(goal.id)} disabled={isGenerating}
+              className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40
+                         text-white font-bold text-sm px-6 py-3 rounded-xl
+                         transition-all active:scale-95 flex items-center gap-2">
+              {isGenerating
+                ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />생성 중…</>
+                : '✨ 오늘의 할 일 3개 생성하기'}
+            </button>
+          </div>
+        )}
+
+        {/* 태스크 목록 */}
+        {total > 0 && (
+          <div className="space-y-2.5">
+            {goal.dailyTasks.map((task, i) => (
+              <TaskCard key={task.id} task={task} index={i}
+                onToggle={(id) => onToggle(id, goal.id)} />
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* 하단 컨트롤 */}
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-800/50">
