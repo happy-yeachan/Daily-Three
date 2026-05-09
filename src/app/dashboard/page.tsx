@@ -70,7 +70,7 @@ function DeadlineBadge({ deadline }: { deadline: string | null }) {
   return <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${cls}`}>{label}</span>
 }
 
-/* ── 마일스톤 트랙 ── */
+/* ── 단계 트랙 (Step Track) ── */
 function MilestoneTrack({
   milestones,
   currentMilestoneId,
@@ -86,12 +86,15 @@ function MilestoneTrack({
   const current = milestones.find((m) => m.id === currentMilestoneId)
   const completedCount = milestones.filter((m) => m.completed).length
 
+  // 토글 가능 여부 — 이미 완료됐거나 현재(첫 미완료) 단계만
+  const isToggleable = (m: Milestone) => m.completed || m.id === currentMilestoneId
+
   return (
     <div className="space-y-3">
       {/* 헤더 */}
       <div className="flex items-baseline justify-between">
         <span className="text-xs text-gray-600 uppercase tracking-widest font-bold">
-          마일스톤 {completedCount}/{milestones.length}
+          전체 {milestones.length}단계 · {completedCount}개 완료
         </span>
         {current && (
           <span className={`text-xs font-bold ${
@@ -108,17 +111,25 @@ function MilestoneTrack({
         )}
       </div>
 
-      {/* 진행 트랙 — 도트 + 연결선 */}
+      {/* 진행 트랙 */}
       <div className="flex items-center">
         {milestones.map((m, i) => {
           const isCurrent = m.id === currentMilestoneId
           const isLast = i === milestones.length - 1
+          const canToggle = isToggleable(m)
           return (
             <div key={m.id} className="flex items-center flex-1 last:flex-initial">
               <button
-                onClick={() => onToggle(m.id)}
+                onClick={() => canToggle && onToggle(m.id)}
+                disabled={!canToggle}
+                title={
+                  canToggle
+                    ? m.completed ? '클릭하면 미완료로 되돌립니다' : '클릭하면 이 단계를 완료 처리합니다'
+                    : '이전 단계를 먼저 완료해주세요'
+                }
                 className={`relative flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center
-                            transition-all duration-200 hover:scale-110
+                            transition-all duration-200
+                            ${canToggle ? 'hover:scale-110 cursor-pointer' : 'cursor-not-allowed opacity-50'}
                             ${m.completed
                               ? 'bg-green-600 border-green-500'
                               : isCurrent
@@ -144,11 +155,11 @@ function MilestoneTrack({
         })}
       </div>
 
-      {/* 현재 마일스톤 텍스트 */}
+      {/* 현재 단계 카드 */}
       {current && (
         <div className="bg-gray-900/50 border border-gray-800 rounded-xl px-3 py-2.5">
           <p className="text-xs text-indigo-400 font-bold mb-0.5">
-            현재 단계 · Step {current.order}
+            지금 진행 중 · {current.order}단계
           </p>
           <p className="text-sm text-gray-200 font-semibold leading-snug">{current.title}</p>
           {current.description && (
@@ -160,7 +171,7 @@ function MilestoneTrack({
       {/* 모두 완료 */}
       {!current && completedCount === milestones.length && (
         <div className="bg-green-950/40 border border-green-900/40 rounded-xl px-3 py-2.5 text-center">
-          <p className="text-sm text-green-400 font-bold">🎉 모든 마일스톤 완료!</p>
+          <p className="text-sm text-green-400 font-bold">🎉 모든 단계 완료!</p>
         </div>
       )}
     </div>
@@ -442,8 +453,9 @@ export default function DashboardPage() {
           ),
         }
       ))
+      const data = await res.json().catch(() => null)
+      if (data?.error) alert(data.error)
     } else {
-      // currentMilestoneId 재계산을 위해 refetch (가벼운 응답)
       await fetchGoals()
     }
   }

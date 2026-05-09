@@ -14,7 +14,23 @@ export async function PATCH(
   })
 
   if (!ms) {
-    return NextResponse.json({ error: '마일스톤을 찾을 수 없습니다.' }, { status: 404 })
+    return NextResponse.json({ error: '단계를 찾을 수 없습니다.' }, { status: 404 })
+  }
+
+  // 미완료 → 완료로 가는 경우: 첫 번째 미완료 단계인지 확인 (순서 강제)
+  if (!ms.completed) {
+    const siblings = await prisma.milestone.findMany({
+      where: { goalId: ms.goalId },
+      orderBy: { order: 'asc' },
+      select: { id: true, completed: true },
+    })
+    const firstUncompleted = siblings.find((s) => !s.completed)
+    if (firstUncompleted?.id !== ms.id) {
+      return NextResponse.json(
+        { error: '이전 단계를 먼저 완료해주세요.' },
+        { status: 400 }
+      )
+    }
   }
 
   const updated = await prisma.milestone.update({

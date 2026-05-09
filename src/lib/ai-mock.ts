@@ -425,9 +425,9 @@ export function mockGenerateTasks(
   const isBeginner = /처음|아이디어|알파벳|0에서|거의 안|거의 신경/.test(level)
   const isAdvanced = /익숙|운영|능숙|체계적|꾸준히|매일|깊이/.test(level)
 
-  // 마일스톤 컨텍스트 prefix — 모든 시나리오에 일관 적용
+  // 단계 컨텍스트 prefix — 모든 시나리오에 일관 적용
   const msPrefix = milestone
-    ? `[마일스톤 ${milestone.order}/${milestone.totalCount}: ${milestone.title}]`
+    ? `[${milestone.order}단계: ${milestone.title}]`
     : `[${goalTitle}]`
 
   // ── Day 1 또는 이전 데이터 없음: 진단만 반영 ──
@@ -459,9 +459,9 @@ export function mockGenerateTasks(
   const half = Math.max(5, Math.floor(minutes / 2))
   const tiny = Math.max(5, Math.floor(minutes / 3))
 
-  // 마일스톤 마감 압박 — 며칠 남았는지 메시지 강화
+  // 단계 마감 압박 — 며칠 남았는지 메시지 강화
   const pressure = milestone && milestone.daysLeft <= 3 && milestone.daysLeft >= 0
-    ? ` (마일스톤 ${milestone.daysLeft}일 남음)`
+    ? ` (단계 마감 ${milestone.daysLeft}일 남음)`
     : ''
 
   if (failed.length === 0) {
