@@ -72,25 +72,21 @@ function DeadlineBadge({ deadline }: { deadline: string | null }) {
 
 /* ──────────────────────────────────────────
    장기 진행도 — 단계(Milestone) 트랙
-   "오늘의 할 일"보다 한 단계 큰 개념. 시각적으로 옅고 보조적
+   사용자 액션 없음. 일수 진척에 따라 시스템이 자동 진행.
    ────────────────────────────────────────── */
 function MilestoneTrack({
   milestones,
   currentMilestoneId,
   currentDayIndex,
-  onToggle,
 }: {
   milestones: Milestone[]
   currentMilestoneId: string | null
   currentDayIndex: number
-  onToggle: (id: string) => void
 }) {
   if (milestones.length === 0) return null
   const current = milestones.find((m) => m.id === currentMilestoneId)
   const completedCount = milestones.filter((m) => m.completed).length
-  const isToggleable = (m: Milestone) => m.completed || m.id === currentMilestoneId
 
-  // 마감 압박 색상
   const daysLeft = current ? current.targetDays - currentDayIndex + 1 : null
   const pressureColor = daysLeft === null
     ? 'text-gray-500'
@@ -100,7 +96,7 @@ function MilestoneTrack({
 
   return (
     <section className="rounded-xl bg-gray-900/30 border border-gray-800/60 px-4 py-3.5 space-y-3">
-      {/* 섹션 식별 라벨 — 약하게 */}
+      {/* 섹션 식별 라벨 */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-[10px] uppercase tracking-[0.2em] text-gray-600 font-bold">
@@ -108,7 +104,7 @@ function MilestoneTrack({
           </span>
           <span className="text-[10px] text-gray-700">·</span>
           <span className="text-[10px] text-gray-500">
-            {completedCount}/{milestones.length} 단계 완료
+            {completedCount}/{milestones.length} 단계 자동 통과
           </span>
         </div>
         {daysLeft !== null && (
@@ -118,25 +114,23 @@ function MilestoneTrack({
         )}
       </div>
 
-      {/* 도트 트랙 — 더 컴팩트 */}
+      {/* 도트 트랙 — 정보 표시만, 클릭 불가 */}
       <div className="flex items-center">
         {milestones.map((m, i) => {
           const isCurrent = m.id === currentMilestoneId
           const isLast = i === milestones.length - 1
-          const canToggle = isToggleable(m)
           return (
             <div key={m.id} className="flex items-center flex-1 last:flex-initial">
-              <button
-                onClick={() => canToggle && onToggle(m.id)}
-                disabled={!canToggle}
+              <div
                 title={
-                  canToggle
-                    ? m.completed ? '클릭하면 미완료로 되돌립니다' : '클릭하면 이 단계를 완료 처리합니다'
-                    : '이전 단계를 먼저 완료해주세요'
+                  m.completed
+                    ? `${m.order}단계: ${m.title} (자동 통과)`
+                    : isCurrent
+                    ? `현재 진행 중: ${m.title}`
+                    : `예정: ${m.title} (Day ${m.targetDays}까지)`
                 }
                 className={`relative flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center
-                            transition-all duration-200
-                            ${canToggle ? 'hover:scale-110 cursor-pointer' : 'cursor-not-allowed opacity-50'}
+                            transition-all duration-300
                             ${m.completed
                               ? 'bg-green-600 border-green-500'
                               : isCurrent
@@ -152,7 +146,7 @@ function MilestoneTrack({
                     {m.order}
                   </span>
                 )}
-              </button>
+              </div>
               {!isLast && (
                 <div className={`flex-1 h-0.5 mx-1 transition-colors duration-300
                                  ${m.completed ? 'bg-green-600/60' : 'bg-gray-800'}`} />
@@ -162,7 +156,7 @@ function MilestoneTrack({
         })}
       </div>
 
-      {/* 현재 단계 — 인라인 텍스트로 (별도 카드 X) */}
+      {/* 현재 단계 인라인 */}
       {current && (
         <p className="text-xs leading-relaxed text-gray-400">
           <span className="text-indigo-400 font-bold">현재 {current.order}단계 :</span>{' '}
@@ -174,7 +168,7 @@ function MilestoneTrack({
       )}
 
       {!current && completedCount === milestones.length && (
-        <p className="text-xs text-green-400 font-bold text-center">🎉 모든 단계 완료!</p>
+        <p className="text-xs text-green-400 font-bold text-center">🎉 모든 단계 통과!</p>
       )}
     </section>
   )
@@ -274,14 +268,12 @@ function GoalTaskPanel({
   onToggle,
   onGenerate,
   onDelete,
-  onToggleMilestone,
   isGenerating,
 }: {
   goal: Goal
   onToggle: (taskId: string, goalId: string) => void
   onGenerate: (goalId: string) => void
   onDelete: (goalId: string) => void
-  onToggleMilestone: (milestoneId: string, goalId: string) => void
   isGenerating: boolean
 }) {
   const completed = goal.dailyTasks.filter((t) => t.completed).length
@@ -317,7 +309,6 @@ function GoalTaskPanel({
             milestones={goal.milestones}
             currentMilestoneId={goal.currentMilestoneId}
             currentDayIndex={goal.currentDayIndex}
-            onToggle={(id) => onToggleMilestone(id, goal.id)}
           />
         </div>
       )}
@@ -449,34 +440,6 @@ export default function DashboardPage() {
     if (res.ok) await fetchGoals()
   }
 
-  const handleToggleMilestone = async (milestoneId: string, goalId: string) => {
-    // 낙관적 업데이트
-    setGoals((prev) => prev.map((g) =>
-      g.id !== goalId ? g : {
-        ...g,
-        milestones: g.milestones.map((m) =>
-          m.id === milestoneId ? { ...m, completed: !m.completed } : m
-        ),
-      }
-    ))
-    const res = await fetch(`/api/milestones/${milestoneId}/toggle`, { method: 'PATCH' })
-    if (!res.ok) {
-      // 롤백
-      setGoals((prev) => prev.map((g) =>
-        g.id !== goalId ? g : {
-          ...g,
-          milestones: g.milestones.map((m) =>
-            m.id === milestoneId ? { ...m, completed: !m.completed } : m
-          ),
-        }
-      ))
-      const data = await res.json().catch(() => null)
-      if (data?.error) alert(data.error)
-    } else {
-      await fetchGoals()
-    }
-  }
-
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/auth')
@@ -598,7 +561,6 @@ export default function DashboardPage() {
                     onToggle={handleToggle}
                     onGenerate={handleGenerate}
                     onDelete={handleDelete}
-                    onToggleMilestone={handleToggleMilestone}
                     isGenerating={generatingId === selected.id}
                   />
                 ) : null}

@@ -31,7 +31,41 @@ export async function GET() {
     orderBy: { createdAt: 'desc' },
   })
 
-  // derived fields: currentDayIndex, currentMilestoneOrder
+  // ── 단계 자동 진행: 현재 dayIndex가 단계의 targetDays를 넘었으면 completed 자동 마킹 ──
+  // 한 번에 다 처리하기 위해 변경 필요한 마일스톤만 모음
+  const milestonesToComplete: { id: string }[] = []
+  for (const g of goals) {
+    const goalStart = new Date(g.createdAt)
+    goalStart.setHours(0, 0, 0, 0)
+    const currentDayIndex = Math.max(
+      1,
+      Math.floor((today.getTime() - goalStart.getTime()) / 86400000) + 1
+    )
+    for (const m of g.milestones) {
+      if (!m.completed && m.targetDays < currentDayIndex) {
+        milestonesToComplete.push({ id: m.id })
+      }
+    }
+  }
+
+  if (milestonesToComplete.length > 0) {
+    await prisma.milestone.updateMany({
+      where: { id: { in: milestonesToComplete.map((m) => m.id) } },
+      data: { completed: true, completedAt: new Date() },
+    })
+    // 메모리상 객체에도 반영
+    const ids = new Set(milestonesToComplete.map((m) => m.id))
+    for (const g of goals) {
+      for (const m of g.milestones) {
+        if (ids.has(m.id)) {
+          m.completed = true
+          m.completedAt = new Date()
+        }
+      }
+    }
+  }
+
+  // derived fields
   const enriched = goals.map((g) => {
     const goalStart = new Date(g.createdAt)
     goalStart.setHours(0, 0, 0, 0)
@@ -39,7 +73,6 @@ export async function GET() {
       1,
       Math.floor((today.getTime() - goalStart.getTime()) / 86400000) + 1
     )
-    // 첫 미완료 마일스톤 = 현재 마일스톤
     const currentMilestone = g.milestones.find((m) => !m.completed) ?? null
     return {
       ...g,
