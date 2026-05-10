@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { sendOtpSms } from '@/lib/sms'
 
 const MAX_REQUESTS_PER_WINDOW = 5      // 5분 내 최대 발송 요청
 const WINDOW_MS = 5 * 60 * 1000
@@ -38,17 +39,25 @@ export async function POST(req: NextRequest) {
     data: { used: true },
   })
 
-  await prisma.otpCode.create({
+  const otp = await prisma.otpCode.create({
     data: { phone, code, expiresAt },
   })
 
-  console.log(`[OTP Mock] ${phone} → ${code}`)
+  // 실제 SMS 발송 (또는 mock — 키 없으면 콘솔/devCode)
+  const sms = await sendOtpSms(phone, code)
 
-  const isDev = process.env.NODE_ENV !== 'production'
+  if (!sms.success) {
+    // 발송 실패 → OTP 즉시 폐기 + 503
+    await prisma.otpCode.update({
+      where: { id: otp.id },
+      data: { used: true },
+    })
+    return NextResponse.json({ error: sms.message }, { status: 503 })
+  }
 
   return NextResponse.json({
     success: true,
-    message: isDev ? null : '인증번호를 발송했습니다.',
-    devCode: isDev ? code : undefined,
+    message: sms.message,
+    devCode: sms.devCode,
   })
 }

@@ -58,6 +58,41 @@ npm run dev
 { "enabled": true, "model": "claude-sonnet-4-6" }
 ```
 
+## SMS 발송 (선택)
+
+기본은 mock 모드 — OTP가 콘솔에 출력되고 화면에 자동 표시됩니다.
+실제 사용자 휴대폰으로 SMS를 보내려면:
+
+**1. Solapi 가입 및 설정**
+
+[Solapi](https://solapi.com) 가입 → 로그인 → 다음 작업:
+- API Key/Secret 발급 (개발센터 → API Key 관리)
+- 발신번호 등록 (회원정보 → 발신번호 사전 등록 — 본인 휴대폰 SMS 인증 1회)
+- 결제수단 등록 + 충전 (테스트용 무료 충전금 일부 지급)
+
+**2. 환경변수 추가** (`.env.local`)
+
+```
+SMS_PROVIDER=solapi
+SOLAPI_API_KEY=NCSXXXXXXXXXXXX
+SOLAPI_API_SECRET=...
+SMS_SENDER_NUMBER=01012345678   # Solapi에 등록한 발신번호
+```
+
+**3. 서버 재시작**
+
+서버 시작 시 콘솔에 `[SMS] Solapi 활성화됨 (발신번호: ...)` 출력.
+
+**4. 활성화 확인**
+
+```bash
+GET /api/ai/status
+# { "llm": {...}, "sms": { "enabled": true, "provider": "solapi" } }
+```
+
+**비용**: 건당 약 10원. Solapi 콘솔에서 잔액·발송 이력 확인 가능.
+**다른 provider** (NHN Cloud, NCP SENS 등)을 쓰려면 `src/lib/sms.ts`에 분기 추가.
+
 ## 기술 스택
 
 - **Next.js 14** (App Router) + **TypeScript**
