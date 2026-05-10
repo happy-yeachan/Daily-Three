@@ -889,6 +889,11 @@ export default function DashboardPage() {
           <span className="hidden md:block text-xs text-gray-600">{today}</span>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/insights"
+            className="text-xs text-gray-400 hover:text-white border border-gray-800
+                       hover:border-gray-600 px-3 py-1.5 rounded-lg transition-all">
+            📊 인사이트
+          </Link>
           <Link href="/goals/new"
             className="text-xs text-gray-400 hover:text-white border border-gray-800
                        hover:border-gray-600 px-3 py-1.5 rounded-lg transition-all">
