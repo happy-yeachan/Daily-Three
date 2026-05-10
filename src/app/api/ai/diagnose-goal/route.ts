@@ -12,6 +12,12 @@ export async function POST(req: NextRequest) {
   if (!goalTitle) {
     return NextResponse.json({ error: '목표를 입력해주세요.' }, { status: 400 })
   }
+  if (goalTitle.length > 500) {
+    return NextResponse.json(
+      { error: '목표 제목은 500자 이하로 입력해주세요.' },
+      { status: 400 }
+    )
+  }
 
   // ANTHROPIC_API_KEY가 있으면 실제 Claude, 없으면 mock으로 자동 fallback
   const questions = await generateDiagnosisQuestions(goalTitle)

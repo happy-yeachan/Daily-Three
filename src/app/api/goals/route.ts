@@ -134,6 +134,18 @@ export async function POST(req: NextRequest) {
   if (!title) {
     return NextResponse.json({ error: '목표를 입력해주세요.' }, { status: 400 })
   }
+  if (title.length > 500) {
+    return NextResponse.json(
+      { error: '목표 제목은 500자 이하로 입력해주세요.' },
+      { status: 400 }
+    )
+  }
+  if (diagnosis && JSON.stringify(diagnosis).length > 20_000) {
+    return NextResponse.json(
+      { error: '진단 정보가 너무 큽니다.' },
+      { status: 400 }
+    )
+  }
 
   // 데드라인이 있으면 일수 계산, 없으면 기본 30일
   const estimatedDays = deadline

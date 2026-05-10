@@ -51,6 +51,12 @@ export async function PATCH(
     if (!trimmed) {
       return NextResponse.json({ error: '목표 제목은 비울 수 없습니다.' }, { status: 400 })
     }
+    if (trimmed.length > 500) {
+      return NextResponse.json(
+        { error: '목표 제목은 500자 이하여야 합니다.' },
+        { status: 400 }
+      )
+    }
     data.title = trimmed
   }
 

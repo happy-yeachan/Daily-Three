@@ -20,7 +20,10 @@ model OtpCode {
   code      String
   expiresAt DateTime
   used      Boolean  @default(false)
+  attempts  Int      @default(0)        // 무차별 대입 방어 — 검증 실패 횟수
   createdAt DateTime @default(now())
+
+  @@index([phone, createdAt])
 }
 
 model Goal {

@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 
-const getSecret = () =>
-  new TextEncoder().encode(
-    process.env.JWT_SECRET || 'daily-three-local-dev-secret-change-in-production'
-  )
+const DEV_FALLBACK_SECRET = 'daily-three-local-dev-secret-change-in-production'
+
+const getSecret = () => {
+  const env = process.env.JWT_SECRET
+  if (env && env.length >= 16) return new TextEncoder().encode(env)
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET is not set or is too short (minimum 16 characters required in production).')
+  }
+  return new TextEncoder().encode(DEV_FALLBACK_SECRET)
+}
 
 const PUBLIC_PATHS = ['/auth', '/api/auth']
 
