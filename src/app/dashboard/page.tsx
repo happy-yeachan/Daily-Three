@@ -23,10 +23,14 @@ interface Milestone {
   achievementRate: number  // 0 ~ 1
 }
 
+type GoalStatus = 'active' | 'paused' | 'completed' | 'archived'
+
 interface Goal {
   id: string
   title: string
   deadline: string | null
+  status: GoalStatus
+  completedAt: string | null
   createdAt: string
   currentDayIndex: number
   currentMilestoneId: string | null
@@ -266,16 +270,21 @@ function SidebarGoalItem({ goal, selected, onClick }: { goal: Goal; selected: bo
   const total = goal.dailyTasks.length
   const allDone = total > 0 && completed === total
 
+  const dimmed = goal.status !== 'active'
   return (
     <button onClick={onClick}
       className={`w-full text-left px-4 py-3.5 rounded-xl transition-all duration-150 group
                   ${selected
                     ? 'bg-indigo-600/20 border border-indigo-600/40'
-                    : 'hover:bg-gray-800/60 border border-transparent'}`}>
+                    : 'hover:bg-gray-800/60 border border-transparent'}
+                  ${dimmed ? 'opacity-60' : ''}`}>
       <div className="flex items-center gap-1.5 mb-1 flex-wrap">
         {selected && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />}
-        <span className="text-[10px] font-bold text-indigo-400">Day {goal.currentDayIndex}</span>
+        {goal.status === 'active' && (
+          <span className="text-[10px] font-bold text-indigo-400">Day {goal.currentDayIndex}</span>
+        )}
         <DeadlineBadge deadline={goal.deadline} />
+        <StatusBadge status={goal.status} />
       </div>
       <p className={`text-sm font-semibold leading-snug line-clamp-2 ${selected ? 'text-white' : 'text-gray-300'}`}>
         {goal.title}
@@ -322,13 +331,13 @@ function GoalTaskPanel({
   goal,
   onToggle,
   onGenerate,
-  onDelete,
+  onEdit,
   isGenerating,
 }: {
   goal: Goal
   onToggle: (taskId: string, goalId: string) => void
   onGenerate: (goalId: string) => void
-  onDelete: (goalId: string) => void
+  onEdit: (goalId: string) => void
   isGenerating: boolean
 }) {
   const completed = goal.dailyTasks.filter((t) => t.completed).length
@@ -338,23 +347,45 @@ function GoalTaskPanel({
   return (
     <div className="flex flex-col h-full animate-slide-up">
       {/* 목표 헤더 */}
-      <div className={`rounded-2xl border p-5 mb-5 transition-all duration-700 flex items-center gap-5
-                       ${allDone
+      <div className={`rounded-2xl border p-5 mb-5 transition-all duration-700 flex items-start gap-4
+                       ${goal.status === 'completed'
+                         ? 'bg-gradient-to-r from-green-950/40 to-gray-900/60 border-green-900/40'
+                         : goal.status === 'paused'
+                         ? 'bg-gradient-to-r from-amber-950/30 to-gray-900/60 border-amber-900/30 opacity-80'
+                         : allDone
                          ? 'bg-gradient-to-r from-green-950/40 to-gray-900/60 border-green-900/40'
                          : 'bg-gradient-to-r from-indigo-950/30 to-gray-900/60 border-indigo-900/30'}`}>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
             <span className="text-xs font-bold text-indigo-400 bg-indigo-950/60 border border-indigo-900/40 px-2 py-0.5 rounded-full">
               Day {goal.currentDayIndex}
             </span>
             <DeadlineBadge deadline={goal.deadline} />
+            <StatusBadge status={goal.status} />
           </div>
           <p className="text-white font-black text-lg leading-snug">{goal.title}</p>
-          {allDone && (
+          {goal.status === 'active' && allDone && (
             <p className="text-sm mt-1.5 font-medium text-green-400">🎉 오늘 완료!</p>
           )}
+          {goal.status === 'paused' && (
+            <p className="text-sm mt-1.5 text-amber-400">일시정지 중 — 편집 메뉴에서 재개할 수 있어요</p>
+          )}
+          {goal.status === 'completed' && (
+            <p className="text-sm mt-1.5 text-green-400 font-medium">달성 완료된 목표예요</p>
+          )}
         </div>
-        {total > 0 && <ProgressRing completed={completed} total={total} size={72} />}
+        <div className="flex flex-col items-end gap-3 flex-shrink-0">
+          <button
+            onClick={() => onEdit(goal.id)}
+            title="목표 편집"
+            className="text-gray-500 hover:text-white p-1.5 rounded-lg hover:bg-gray-800/60 transition-all"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          </button>
+          {total > 0 && <ProgressRing completed={completed} total={total} size={72} />}
+        </div>
       </div>
 
       {/* ───── 보조: 장기 진행도(단계) ───── */}
@@ -412,14 +443,192 @@ function GoalTaskPanel({
 
       {/* 하단 컨트롤 */}
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-800/50">
-        <button onClick={() => onGenerate(goal.id)} disabled={isGenerating}
+        <button onClick={() => onGenerate(goal.id)} disabled={isGenerating || goal.status !== 'active'}
           className="text-xs text-gray-600 hover:text-gray-300 transition-colors disabled:opacity-40
                      flex items-center gap-1.5">
-          {isGenerating ? '생성 중…' : '↻ 오늘 할 일 다시 생성'}
+          {isGenerating ? '생성 중…' : goal.status !== 'active' ? '— 활성 상태에서만 생성 —' : '↻ 오늘 할 일 다시 생성'}
         </button>
-        <button onClick={() => onDelete(goal.id)}
-          className="text-xs text-gray-700 hover:text-red-500 transition-colors">
-          목표 삭제
+        <button onClick={() => onEdit(goal.id)}
+          className="text-xs text-gray-600 hover:text-white transition-colors">
+          편집·상태 변경
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ── 상태 뱃지 ── */
+function StatusBadge({ status }: { status: GoalStatus }) {
+  if (status === 'active') return null
+  const map: Record<Exclude<GoalStatus, 'active'>, { label: string; cls: string }> = {
+    paused:    { label: '일시정지', cls: 'text-amber-400 bg-amber-950/60 border-amber-900/40' },
+    completed: { label: '✓ 달성',   cls: 'text-green-400 bg-green-950/60 border-green-900/40' },
+    archived:  { label: '보관됨',   cls: 'text-gray-500 bg-gray-900 border-gray-800' },
+  }
+  const { label, cls } = map[status]
+  return <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${cls}`}>{label}</span>
+}
+
+/* ── 목표 편집 모달 ── */
+function GoalEditModal({
+  goal,
+  onClose,
+  onSave,
+  onChangeStatus,
+  onDelete,
+}: {
+  goal: Goal | null
+  onClose: () => void
+  onSave: (id: string, patch: { title?: string; deadline?: string | null }) => Promise<void>
+  onChangeStatus: (id: string, status: GoalStatus) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+}) {
+  const [title, setTitle] = useState('')
+  const [deadline, setDeadline] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (goal) {
+      setTitle(goal.title)
+      setDeadline(goal.deadline ? goal.deadline.split('T')[0] : '')
+    }
+  }, [goal])
+
+  if (!goal) return null
+
+  const today = new Date().toISOString().split('T')[0]
+  const dirty = title.trim() !== goal.title ||
+                (deadline || null) !== (goal.deadline ? goal.deadline.split('T')[0] : null)
+
+  const handleSave = async () => {
+    if (!title.trim() || !dirty) return
+    setSaving(true)
+    try {
+      await onSave(goal.id, {
+        title: title.trim(),
+        deadline: deadline || null,
+      })
+      onClose()
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center p-4 animate-pop-in"
+         onClick={onClose}>
+      <div className="w-full max-w-md bg-gray-900 border border-gray-800 rounded-3xl p-6 shadow-2xl"
+           onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-baseline justify-between mb-5">
+          <h2 className="text-lg font-black text-white">목표 편집</h2>
+          <StatusBadge status={goal.status} />
+        </div>
+
+        {/* 제목 */}
+        <div className="space-y-1.5 mb-4">
+          <label className="text-xs text-gray-500 uppercase tracking-widest font-bold">제목</label>
+          <textarea
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            rows={3}
+            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3
+                       text-white placeholder-gray-700 text-sm resize-none leading-relaxed
+                       focus:outline-none focus:border-indigo-500 transition-colors"
+          />
+        </div>
+
+        {/* 데드라인 */}
+        <div className="space-y-1.5 mb-5">
+          <label className="text-xs text-gray-500 uppercase tracking-widest font-bold">데드라인</label>
+          <input
+            type="date"
+            value={deadline}
+            min={today}
+            onChange={(e) => setDeadline(e.target.value)}
+            className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5
+                       text-white text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+          />
+          {deadline && (
+            <button onClick={() => setDeadline('')} className="text-[11px] text-gray-600 hover:text-gray-400">
+              데드라인 비우기
+            </button>
+          )}
+        </div>
+
+        {/* 저장 */}
+        <button
+          onClick={handleSave}
+          disabled={!dirty || saving || !title.trim()}
+          className="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-95
+                     disabled:opacity-30 disabled:cursor-not-allowed
+                     text-white font-bold py-3 rounded-xl transition-all mb-4"
+        >
+          {saving ? '저장 중…' : dirty ? '변경사항 저장' : '저장됨'}
+        </button>
+
+        {/* 상태 액션 */}
+        <div className="space-y-2 pt-4 border-t border-gray-800">
+          <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-2">상태 변경</p>
+
+          {goal.status === 'active' && (
+            <>
+              <button
+                onClick={() => onChangeStatus(goal.id, 'paused')}
+                className="w-full text-left px-4 py-2.5 rounded-xl border border-gray-800
+                           hover:border-amber-700 hover:bg-amber-950/30 transition-all
+                           text-sm text-gray-300 flex items-center justify-between"
+              >
+                <span>⏸  일시정지</span>
+                <span className="text-xs text-gray-600">잠시 쉬어가기</span>
+              </button>
+              <button
+                onClick={() => onChangeStatus(goal.id, 'completed')}
+                className="w-full text-left px-4 py-2.5 rounded-xl border border-gray-800
+                           hover:border-green-700 hover:bg-green-950/30 transition-all
+                           text-sm text-gray-300 flex items-center justify-between"
+              >
+                <span>🎉  목표 달성으로 마무리</span>
+                <span className="text-xs text-gray-600">기록 보존</span>
+              </button>
+            </>
+          )}
+          {goal.status === 'paused' && (
+            <button
+              onClick={() => onChangeStatus(goal.id, 'active')}
+              className="w-full text-left px-4 py-2.5 rounded-xl border border-gray-800
+                         hover:border-indigo-700 hover:bg-indigo-950/30 transition-all
+                         text-sm text-gray-300 flex items-center justify-between"
+            >
+              <span>▶  다시 시작하기</span>
+              <span className="text-xs text-gray-600">진행 재개</span>
+            </button>
+          )}
+          {goal.status === 'completed' && (
+            <button
+              onClick={() => onChangeStatus(goal.id, 'active')}
+              className="w-full text-left px-4 py-2.5 rounded-xl border border-gray-800
+                         hover:border-indigo-700 hover:bg-indigo-950/30 transition-all
+                         text-sm text-gray-300 flex items-center justify-between"
+            >
+              <span>↩  달성 취소 → 활성으로</span>
+              <span className="text-xs text-gray-600">계속 진행</span>
+            </button>
+          )}
+
+          <button
+            onClick={() => onDelete(goal.id)}
+            className="w-full text-left px-4 py-2.5 rounded-xl border border-gray-800
+                       hover:border-red-700 hover:bg-red-950/30 transition-all
+                       text-sm text-red-500 flex items-center justify-between"
+          >
+            <span>🗑  영구 삭제</span>
+            <span className="text-xs text-gray-700">되돌릴 수 없음</span>
+          </button>
+        </div>
+
+        <button onClick={onClose}
+          className="w-full mt-4 text-xs text-gray-600 hover:text-gray-400 transition-colors py-1">
+          닫기
         </button>
       </div>
     </div>
@@ -505,6 +714,9 @@ export default function DashboardPage() {
 
   // 회고 모달 상태
   const [reflectingGoalId, setReflectingGoalId] = useState<string | null>(null)
+
+  // 편집 모달 상태
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null)
 
   // 토스트 (조정 안내)
   const [toast, setToast] = useState<string | null>(null)
@@ -610,9 +822,46 @@ export default function DashboardPage() {
   }
 
   const handleDelete = async (goalId: string) => {
-    if (!confirm('이 목표와 할 일을 모두 삭제할까요?')) return
+    if (!confirm('이 목표와 할 일이 영구 삭제됩니다. 계속할까요?')) return
     const res = await fetch(`/api/goals/${goalId}`, { method: 'DELETE' })
-    if (res.ok) await fetchGoals()
+    if (res.ok) {
+      setEditingGoalId(null)
+      await fetchGoals()
+    }
+  }
+
+  const handleSaveGoal = async (goalId: string, patch: { title?: string; deadline?: string | null }) => {
+    const res = await fetch(`/api/goals/${goalId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    if (res.ok) {
+      await fetchGoals()
+      setToast('변경사항이 저장됐어요')
+    } else {
+      const data = await res.json().catch(() => null)
+      if (data?.error) alert(data.error)
+    }
+  }
+
+  const handleChangeStatus = async (goalId: string, status: GoalStatus) => {
+    const res = await fetch(`/api/goals/${goalId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    if (res.ok) {
+      await fetchGoals()
+      setEditingGoalId(null)
+      const messages: Record<GoalStatus, string> = {
+        active:    '다시 활성 상태로 돌아왔어요',
+        paused:    '일시정지됐어요. 언제든 다시 시작할 수 있어요',
+        completed: '🎉 목표 달성을 축하해요!',
+        archived:  '보관 처리됐어요',
+      }
+      setToast(messages[status])
+    }
   }
 
   const handleLogout = async () => {
@@ -735,7 +984,7 @@ export default function DashboardPage() {
                     goal={selected}
                     onToggle={handleToggle}
                     onGenerate={handleGenerate}
-                    onDelete={handleDelete}
+                    onEdit={(id) => setEditingGoalId(id)}
                     isGenerating={generatingId === selected.id}
                   />
                 ) : null}
@@ -746,14 +995,23 @@ export default function DashboardPage() {
         </>
       )}
 
-      {/* 회고 모달 — 오늘 3개 모두 완료 시 */}
+      {/* 회고 모달 */}
       <ReflectionModal
         open={reflectingGoalId !== null}
         onSubmit={handleReflect}
         onSkip={() => setReflectingGoalId(null)}
       />
 
-      {/* 토스트 — 회고 응답 또는 다음날 조정 안내 */}
+      {/* 목표 편집 모달 */}
+      <GoalEditModal
+        goal={goals.find((g) => g.id === editingGoalId) ?? null}
+        onClose={() => setEditingGoalId(null)}
+        onSave={handleSaveGoal}
+        onChangeStatus={handleChangeStatus}
+        onDelete={handleDelete}
+      />
+
+      {/* 토스트 */}
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
     </div>
   )

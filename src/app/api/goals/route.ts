@@ -17,8 +17,9 @@ export async function GET() {
 
   const { today, tomorrow } = getTodayBounds()
 
+  // archived 외 모든 status 반환 (active, paused, completed)
   const goals = await prisma.goal.findMany({
-    where: { userId: session.userId, isActive: true },
+    where: { userId: session.userId, status: { not: 'archived' } },
     include: {
       dailyTasks: {
         where: { date: { gte: today, lt: tomorrow } },
