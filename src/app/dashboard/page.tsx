@@ -865,6 +865,7 @@ export default function DashboardPage() {
   }
 
   const handleLogout = async () => {
+    if (!confirm('로그아웃하면 다음 로그인 시 인증번호(SMS)를 다시 받아야 해요. 계속할까요?')) return
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/auth')
   }
