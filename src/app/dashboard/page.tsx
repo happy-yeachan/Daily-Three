@@ -18,6 +18,9 @@ interface Milestone {
   order: number
   targetDays: number
   completed: boolean
+  completedTasks: number
+  totalTasks: number
+  achievementRate: number  // 0 ~ 1
 }
 
 interface Goal {
@@ -115,25 +118,45 @@ function MilestoneTrack({
         )}
       </div>
 
-      {/* 도트 트랙 — 정보 표시만, 클릭 불가 */}
+      {/* 도트 트랙 — 정보 표시만, 클릭 불가
+          완료된 단계는 활동률에 따라 색상 분리 (green/amber/gray) */}
       <div className="flex items-center">
         {milestones.map((m, i) => {
           const isCurrent = m.id === currentMilestoneId
           const isLast = i === milestones.length - 1
+
+          // 완료된 단계의 활동률에 따른 색상
+          const ratePct = Math.round(m.achievementRate * 100)
+          const achievement = m.achievementRate >= 0.6
+            ? 'high'   // 진짜 달성
+            : m.achievementRate >= 0.3
+            ? 'mid'    // 부분 달성
+            : 'low'    // 통과만
+
+          const completedDotCls =
+            achievement === 'high' ? 'bg-green-600 border-green-500'
+            : achievement === 'mid' ? 'bg-amber-600 border-amber-500'
+            : 'bg-gray-700 border-gray-600'
+
+          const completedLineCls =
+            achievement === 'high' ? 'bg-green-600/60'
+            : achievement === 'mid' ? 'bg-amber-600/50'
+            : 'bg-gray-700/60'
+
+          const tooltipText = m.completed
+            ? `${m.order}단계: ${m.title}\n달성률 ${ratePct}% (${m.completedTasks}/${m.totalTasks} 완료)`
+            : isCurrent
+            ? `현재 진행 중: ${m.title}\n현재까지 ${m.completedTasks}/${m.totalTasks} 완료`
+            : `예정: ${m.title} (Day ${m.targetDays}까지)`
+
           return (
             <div key={m.id} className="flex items-center flex-1 last:flex-initial">
               <div
-                title={
-                  m.completed
-                    ? `${m.order}단계: ${m.title} (자동 통과)`
-                    : isCurrent
-                    ? `현재 진행 중: ${m.title}`
-                    : `예정: ${m.title} (Day ${m.targetDays}까지)`
-                }
+                title={tooltipText}
                 className={`relative flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center
                             transition-all duration-300
                             ${m.completed
-                              ? 'bg-green-600 border-green-500'
+                              ? completedDotCls
                               : isCurrent
                               ? 'bg-indigo-600 border-indigo-400 ring-4 ring-indigo-600/20'
                               : 'bg-gray-900 border-gray-700'}`}
@@ -150,22 +173,53 @@ function MilestoneTrack({
               </div>
               {!isLast && (
                 <div className={`flex-1 h-0.5 mx-1 transition-colors duration-300
-                                 ${m.completed ? 'bg-green-600/60' : 'bg-gray-800'}`} />
+                                 ${m.completed ? completedLineCls : 'bg-gray-800'}`} />
               )}
             </div>
           )
         })}
       </div>
 
-      {/* 현재 단계 인라인 */}
+      {/* 색상 범례 — 한 단계라도 완료된 경우만 */}
+      {completedCount > 0 && (
+        <div className="flex items-center gap-3 text-[10px] text-gray-600">
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-green-600" />
+            <span>잘 해냄 (60%+)</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-amber-600" />
+            <span>일부 달성</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-full bg-gray-700" />
+            <span>통과만</span>
+          </span>
+        </div>
+      )}
+
+      {/* 현재 단계 인라인 — 활동률도 함께 */}
       {current && (
-        <p className="text-xs leading-relaxed text-gray-400">
-          <span className="text-indigo-400 font-bold">현재 {current.order}단계 :</span>{' '}
-          <span className="text-gray-300">{current.title}</span>
-          {current.description && (
-            <span className="text-gray-600"> — {current.description}</span>
+        <div className="text-xs leading-relaxed text-gray-400 space-y-0.5">
+          <p>
+            <span className="text-indigo-400 font-bold">현재 {current.order}단계 :</span>{' '}
+            <span className="text-gray-300">{current.title}</span>
+            {current.description && (
+              <span className="text-gray-600"> — {current.description}</span>
+            )}
+          </p>
+          {current.totalTasks > 0 && (
+            <p className="text-gray-600">
+              지금까지 {current.completedTasks}/{current.totalTasks} 완료 ·{' '}
+              <span className={
+                current.achievementRate >= 0.6 ? 'text-green-400' :
+                current.achievementRate >= 0.3 ? 'text-amber-400' : 'text-gray-500'
+              }>
+                {Math.round(current.achievementRate * 100)}%
+              </span>
+            </p>
           )}
-        </p>
+        </div>
       )}
 
       {!current && completedCount === milestones.length && (

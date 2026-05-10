@@ -31,8 +31,20 @@ export async function GET() {
     orderBy: { createdAt: 'desc' },
   })
 
-  // ── 단계 자동 진행: 현재 dayIndex가 단계의 targetDays를 넘었으면 completed 자동 마킹 ──
-  // 한 번에 다 처리하기 위해 변경 필요한 마일스톤만 모음
+  // 활동률 계산용: 각 목표의 모든 태스크를 한 번에 조회 (N+1 회피)
+  const goalIds = goals.map((g) => g.id)
+  const allTasks = await prisma.dailyTask.findMany({
+    where: { goalId: { in: goalIds } },
+    select: { goalId: true, date: true, completed: true },
+  })
+  const tasksByGoal = new Map<string, typeof allTasks>()
+  for (const t of allTasks) {
+    const arr = tasksByGoal.get(t.goalId) ?? []
+    arr.push(t)
+    tasksByGoal.set(t.goalId, arr)
+  }
+
+  // ── 단계 자동 진행 ──
   const milestonesToComplete: { id: string }[] = []
   for (const g of goals) {
     const goalStart = new Date(g.createdAt)
@@ -53,7 +65,6 @@ export async function GET() {
       where: { id: { in: milestonesToComplete.map((m) => m.id) } },
       data: { completed: true, completedAt: new Date() },
     })
-    // 메모리상 객체에도 반영
     const ids = new Set(milestonesToComplete.map((m) => m.id))
     for (const g of goals) {
       for (const m of g.milestones) {
@@ -65,7 +76,7 @@ export async function GET() {
     }
   }
 
-  // derived fields
+  // ── derived fields: dayIndex, currentMilestoneId, milestone별 achievementRate ──
   const enriched = goals.map((g) => {
     const goalStart = new Date(g.createdAt)
     goalStart.setHours(0, 0, 0, 0)
@@ -74,8 +85,33 @@ export async function GET() {
       Math.floor((today.getTime() - goalStart.getTime()) / 86400000) + 1
     )
     const currentMilestone = g.milestones.find((m) => !m.completed) ?? null
+
+    const goalTasks = tasksByGoal.get(g.id) ?? []
+
+    // 각 단계의 활동률 계산
+    const milestonesWithStats = g.milestones.map((m, i) => {
+      const prevTargetDay = i > 0 ? g.milestones[i - 1].targetDays : 0
+      // 단계 기간: dayIndex가 prevTargetDay+1 ~ targetDays 인 task들
+      const periodTasks = goalTasks.filter((t) => {
+        const td = new Date(t.date)
+        td.setHours(0, 0, 0, 0)
+        const dayIdx = Math.floor((td.getTime() - goalStart.getTime()) / 86400000) + 1
+        return dayIdx > prevTargetDay && dayIdx <= m.targetDays
+      })
+      const completedCount = periodTasks.filter((t) => t.completed).length
+      const totalCount = periodTasks.length
+      const rate = totalCount > 0 ? completedCount / totalCount : 0
+      return {
+        ...m,
+        completedTasks: completedCount,
+        totalTasks: totalCount,
+        achievementRate: rate,
+      }
+    })
+
     return {
       ...g,
+      milestones: milestonesWithStats,
       currentDayIndex,
       currentMilestoneId: currentMilestone?.id ?? null,
     }
