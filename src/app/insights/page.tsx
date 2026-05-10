@@ -42,7 +42,7 @@ function WeeklyChart({ stats }: { stats: DayStat[] }) {
   const todayDate = new Date().toISOString().split('T')[0]
 
   return (
-    <div className="flex items-end justify-between gap-1.5 h-40 px-1">
+    <div className="flex items-end justify-between gap-1.5 h-40 lg:h-56 px-1">
       {stats.map((s) => {
         const totalH = (s.total / maxTotal) * 100
         const completedH = s.total > 0 ? (s.completed / s.total) * totalH : 0
@@ -142,7 +142,7 @@ export default function InsightsPage() {
   return (
     <div className="min-h-screen bg-gray-950 flex flex-col">
       <header className="sticky top-0 z-10 bg-gray-950/80 backdrop-blur-md
-                         border-b border-gray-800/40 px-5 md:px-6 py-4 flex items-center justify-between">
+                         border-b border-gray-800/40 px-5 md:px-8 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href="/dashboard"
             className="text-gray-500 hover:text-white transition-colors text-sm flex items-center gap-1.5">
@@ -152,11 +152,11 @@ export default function InsightsPage() {
             대시보드
           </Link>
         </div>
-        <h1 className="text-base font-black text-white">📊 인사이트</h1>
+        <h1 className="text-base lg:text-lg font-black text-white">📊 인사이트</h1>
         <div className="w-16" />
       </header>
 
-      <main className="flex-1 px-5 md:px-6 py-6 max-w-3xl mx-auto w-full">
+      <main className="flex-1 px-5 md:px-8 py-6 lg:py-8 max-w-3xl lg:max-w-6xl mx-auto w-full">
         {loading && (
           <div className="flex items-center justify-center py-32">
             <div className="w-9 h-9 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin" />
@@ -177,72 +177,88 @@ export default function InsightsPage() {
         )}
 
         {!loading && data && data.summary.totalGoals > 0 && (
-          <div className="space-y-6 animate-slide-up">
+          <div className="animate-slide-up space-y-5 lg:space-y-6">
 
-            {/* ── 요약 ── */}
-            <section className="grid grid-cols-3 gap-3">
-              <SummaryCard
-                label="활성 목표"
-                value={`${data.summary.activeGoals}개`}
-                sub={data.summary.completedGoals > 0 ? `달성 ${data.summary.completedGoals}` : null}
-              />
-              <SummaryCard
-                label="누적 완료"
-                value={`${data.summary.totalCompletedEver}개`}
-                sub={`전체 ${data.summary.totalTasksEver}개 중`}
-              />
-              <SummaryCard
-                label="전체 완료율"
-                value={`${Math.round(data.summary.overallRate * 100)}%`}
-                accent={data.summary.overallRate >= 0.6 ? 'green' : data.summary.overallRate >= 0.3 ? 'amber' : 'gray'}
-              />
+            {/* ━━━━━━━ ROW 1: 요약 + 스트릭 ━━━━━━━ */}
+            <section className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-5">
+
+              {/* Summary 3카드 — PC: 7col, 모바일: full */}
+              <div className="lg:col-span-7 grid grid-cols-3 gap-3">
+                <SummaryCard
+                  label="활성 목표"
+                  value={`${data.summary.activeGoals}개`}
+                  sub={data.summary.completedGoals > 0 ? `달성 ${data.summary.completedGoals}` : null}
+                />
+                <SummaryCard
+                  label="누적 완료"
+                  value={`${data.summary.totalCompletedEver}개`}
+                  sub={`전체 ${data.summary.totalTasksEver}개 중`}
+                />
+                <SummaryCard
+                  label="전체 완료율"
+                  value={`${Math.round(data.summary.overallRate * 100)}%`}
+                  accent={data.summary.overallRate >= 0.6 ? 'green' : data.summary.overallRate >= 0.3 ? 'amber' : 'gray'}
+                />
+              </div>
+
+              {/* Streak — PC: 5col, 모바일: full */}
+              <div className="lg:col-span-5 bg-gradient-to-br from-orange-950/40 to-gray-900/60
+                              border border-orange-900/30 rounded-2xl p-5 lg:p-6
+                              flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">연속 활동</p>
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl lg:text-4xl font-black text-white">{data.streak}</span>
+                    <span className="text-sm text-gray-400 font-medium">일 연속</span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {data.streak === 0 ? '오늘 한 가지라도 완료해보세요' :
+                     data.streak < 3 ? '좋은 시작이에요' :
+                     data.streak < 7 ? '리듬이 만들어지고 있어요' :
+                     data.streak < 30 ? '정말 꾸준하시네요' :
+                     '습관이 되었어요!'}
+                  </p>
+                </div>
+                <div className="text-5xl lg:text-6xl">🔥</div>
+              </div>
             </section>
 
-            {/* ── 스트릭 ── */}
-            <section className="bg-gradient-to-br from-orange-950/40 to-gray-900/60
-                                border border-orange-900/30 rounded-2xl p-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">연속 활동</p>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-black text-white">{data.streak}</span>
-                  <span className="text-sm text-gray-400 font-medium">일 연속</span>
+            {/* ━━━━━━━ ROW 2: 7일 차트 + 회고 분포 ━━━━━━━ */}
+            <section className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-5">
+
+              {/* 7일 차트 — PC: 8col */}
+              <div className="lg:col-span-8 bg-gray-900/40 border border-gray-800/60 rounded-2xl p-5 lg:p-6">
+                <div className="flex items-baseline justify-between mb-4 lg:mb-5">
+                  <h2 className="text-sm lg:text-base font-black text-white">최근 7일</h2>
+                  <span className="text-[10px] text-gray-600 uppercase tracking-widest">
+                    완료 / 전체
+                  </span>
                 </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  {data.streak === 0 ? '오늘 한 가지라도 완료해보세요' :
-                   data.streak < 3 ? '좋은 시작이에요' :
-                   data.streak < 7 ? '리듬이 만들어지고 있어요' :
-                   data.streak < 30 ? '정말 꾸준하시네요' :
-                   '습관이 되었어요!'}
+                <WeeklyChart stats={data.stats7days} />
+                <p className="text-[10px] text-gray-700 mt-3 text-center">
+                  인디고 = 진행 중 · 초록 = 그날 모두 완료
                 </p>
               </div>
-              <div className="text-5xl">🔥</div>
-            </section>
 
-            {/* ── 7일 활동 ── */}
-            <section className="bg-gray-900/40 border border-gray-800/60 rounded-2xl p-5">
-              <div className="flex items-baseline justify-between mb-4">
-                <h2 className="text-sm font-black text-white">최근 7일</h2>
-                <span className="text-[10px] text-gray-600 uppercase tracking-widest">
-                  완료 / 전체
-                </span>
+              {/* 회고 분포 — PC: 4col */}
+              <div className="lg:col-span-4 bg-gray-900/40 border border-gray-800/60 rounded-2xl p-5 lg:p-6">
+                <h2 className="text-sm lg:text-base font-black text-white mb-4 lg:mb-5">
+                  자가 평가 분포
+                </h2>
+                <ReflectionBars data={data.reflection} />
               </div>
-              <WeeklyChart stats={data.stats7days} />
-              <p className="text-[10px] text-gray-700 mt-3 text-center">
-                인디고 = 진행 중 · 초록 = 그날 모두 완료
-              </p>
             </section>
 
-            {/* ── 회고 분포 ── */}
-            <section className="bg-gray-900/40 border border-gray-800/60 rounded-2xl p-5">
-              <h2 className="text-sm font-black text-white mb-4">자가 평가 분포</h2>
-              <ReflectionBars data={data.reflection} />
-            </section>
-
-            {/* ── 목표별 카드 ── */}
+            {/* ━━━━━━━ ROW 3: 목표별 진행 ━━━━━━━ */}
             {data.goals.length > 0 && (
               <section>
-                <h2 className="text-sm font-black text-white mb-3 px-1">목표별 진행</h2>
-                <div className="space-y-2.5">
+                <div className="flex items-baseline justify-between mb-3 px-1">
+                  <h2 className="text-sm lg:text-base font-black text-white">목표별 진행</h2>
+                  <span className="text-[10px] text-gray-600 uppercase tracking-widest">
+                    {data.goals.length}개
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 lg:gap-3">
                   {data.goals.map((g) => (
                     <GoalSummaryCard key={g.id} goal={g} />
                   ))}
