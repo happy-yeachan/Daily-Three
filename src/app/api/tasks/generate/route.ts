@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { generateTasks } from '@/lib/llm'
 import {
-  mockGenerateTasks,
   DiagnosisData,
   PreviousTaskSnapshot,
   CurrentMilestone,
@@ -83,8 +83,8 @@ export async function POST(req: NextRequest) {
     ? (JSON.parse(goal.diagnosis) as DiagnosisData)
     : null
 
-  // 6. 모든 컨텍스트 mock에 전달
-  const result = mockGenerateTasks(
+  // 6. 모든 컨텍스트로 태스크 생성 (LLM 또는 mock fallback)
+  const result = await generateTasks(
     goal.title,
     diagnosis,
     previousTasks,

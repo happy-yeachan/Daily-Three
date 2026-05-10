@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
-import { mockSuggestDeadline, DiagnosisData } from '@/lib/ai-mock'
+import { suggestDeadline } from '@/lib/llm'
+import { DiagnosisData } from '@/lib/ai-mock'
 
 export async function POST(req: NextRequest) {
   const session = await getSession()
@@ -14,8 +15,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '목표를 입력해주세요.' }, { status: 400 })
   }
 
-  // MVP: AI 목업 — 진단 결과를 반영해 추천
-  const suggestion = mockSuggestDeadline(goalTitle, diagnosis)
+  const suggestion = await suggestDeadline(goalTitle, diagnosis)
 
   return NextResponse.json(suggestion)
 }

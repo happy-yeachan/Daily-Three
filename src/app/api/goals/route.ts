@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSession } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { mockGenerateMilestones, DiagnosisData } from '@/lib/ai-mock'
+import { generateMilestones } from '@/lib/llm'
+import { DiagnosisData } from '@/lib/ai-mock'
 
 function getTodayBounds() {
   const today = new Date()
@@ -139,8 +140,8 @@ export async function POST(req: NextRequest) {
     ? Math.max(7, Math.ceil((new Date(deadline).getTime() - Date.now()) / 86400000))
     : 30
 
-  // 마일스톤 자동 생성
-  const milestones = mockGenerateMilestones(title, estimatedDays, diagnosis)
+  // 단계 자동 생성 (LLM 또는 mock fallback)
+  const milestones = await generateMilestones(title, estimatedDays, diagnosis)
 
   // 트랜잭션: 목표 + 마일스톤 한 번에 생성
   const goal = await prisma.goal.create({
